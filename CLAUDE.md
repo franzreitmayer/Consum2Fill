@@ -32,6 +32,8 @@ Voraussetzung: `nvm use 24`, `corepack enable`, `pnpm install`.
 | Entwicklung               | `pnpm dev`                             |
 | Gesamtsystem in Docker    | `docker compose up --build -d`         |
 
+Worktree nach dem Merge entfernen: `node scripts/remove-worktree.mjs T-<id>` (statt `git worktree remove`, das unter Windows an `node_modules` scheitert).
+
 Vor dem ersten Compose-Start `.env.example` nach `.env` kopieren. `pnpm dev` öffnet das Frontend auf Port 5173 und die API auf Port 3001. In Docker läuft beides auf `APP_PORT` (Standard 3001), MongoDB ist auf dem Host über `MONGO_PORT` (Standard 27018) erreichbar.
 
 ## Harte Regeln
