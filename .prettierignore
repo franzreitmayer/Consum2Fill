@@ -1,0 +1,5 @@
+.worktrees/
+**/dist/
+**/coverage/
+pnpm-lock.yaml
+resources/

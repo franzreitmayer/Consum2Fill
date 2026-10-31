@@ -1,0 +1,58 @@
+openapi: 3.1.0
+info:
+  title: consumption2refill API
+  version: 0.1.0
+  description: Verbindlicher Vertrag zwischen apps/web und apps/api.
+paths:
+  /api/hello:
+    get:
+      operationId: getHello
+      summary: Liefert eine Begrüßung
+      responses:
+        "200":
+          description: Begrüßung
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HelloResponse"
+  /api/health:
+    get:
+      operationId: getHealth
+      summary: Meldet den Zustand des Servers und der Datenbankverbindung
+      responses:
+        "200":
+          description: Server und Datenbank sind verfügbar
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Die Datenbank ist nicht erreichbar
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+components:
+  schemas:
+    HelloResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+    HealthResponse:
+      type: object
+      required: [status, db]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        db:
+          type: string
+          enum: [connected, disconnected]
+    ErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string

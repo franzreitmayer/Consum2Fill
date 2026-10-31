@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.png binary
+
+# Parallel task branches each append to their own section
+PROGRESS.md merge=union

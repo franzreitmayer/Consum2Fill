@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+
+# Secrets and machine-specific settings
+.env
+.claude/settings.local.json
+
+# Task worktrees, see .claude/commands/start-task.md
+.worktrees/
+
+.DS_Store
+Thumbs.db
