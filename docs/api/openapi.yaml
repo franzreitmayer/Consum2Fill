@@ -1,8 +1,14 @@
 openapi: 3.1.0
 info:
   title: consumption2refill API
-  version: 0.1.0
-  description: Verbindlicher Vertrag zwischen apps/web und apps/api.
+  version: 0.2.0
+  description: >-
+    Verbindlicher Vertrag zwischen apps/web und apps/api. Alle Routen verlangen eine Sitzung
+    (Cookie), sofern sie nicht `security: []` angeben. Fehlerantworten haben die Form
+    ErrorResponse. Unter /api/admin antwortet die API ohne Sitzung mit 401 und ohne Rolle ADMIN
+    mit 403.
+security:
+  - sessionCookie: []
 paths:
   /api/hello:
     get:
@@ -15,10 +21,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HelloResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /api/health:
     get:
       operationId: getHealth
       summary: Meldet den Zustand des Servers und der Datenbankverbindung
+      security: []
       responses:
         "200":
           description: Server und Datenbank sind verfügbar
@@ -32,7 +41,277 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
+  /api/auth/providers:
+    get:
+      operationId: getAuthProviders
+      summary: Nennt die Anmeldearten für den Anmeldebildschirm
+      security: []
+      responses:
+        "200":
+          description: Anmeldearten
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthProvidersResponse"
+  /api/auth/login:
+    post:
+      operationId: login
+      summary: Meldet einen lokalen Benutzer an und setzt das Sitzungscookie
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Angemeldeter Benutzer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Zu viele fehlgeschlagene Versuche
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/auth/logout:
+    post:
+      operationId: logout
+      summary: Beendet die Sitzung, auch ohne gültige Sitzung erfolgreich
+      security: []
+      responses:
+        "204":
+          description: Abgemeldet
+  /api/auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: Liefert den angemeldeten Benutzer
+      responses:
+        "200":
+          description: Angemeldeter Benutzer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/auth/oidc/login:
+    get:
+      operationId: startOidcLogin
+      summary: Leitet zum Identity Provider weiter
+      security: []
+      responses:
+        "302":
+          description: Weiterleitung zum Identity Provider, bei einem Fehler nach /?loginError=oidc
+  /api/auth/oidc/callback:
+    get:
+      operationId: finishOidcLogin
+      summary: Schließt die Anmeldung ab und legt den Benutzer bei Bedarf an
+      security: []
+      responses:
+        "302":
+          description: Weiterleitung nach / mit Sitzungscookie, bei einem Fehler nach /?loginError=oidc
+  /api/admin/users:
+    get:
+      operationId: listUsers
+      summary: Listet alle Benutzer
+      responses:
+        "200":
+          description: Benutzer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: createUser
+      summary: Legt einen lokalen Benutzer an
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: Angelegter Benutzer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/admin/users/{id}:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    patch:
+      operationId: updateUser
+      summary: >-
+        Ändert einen Benutzer. Bei IAM-Benutzern ist nur die Rolle änderbar. Der letzte
+        Administrator kann seine Rolle nicht verlieren.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: Geänderter Benutzer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteUser
+      summary: Löscht einen Benutzer samt Sitzungen, nicht aber das eigene Konto
+      responses:
+        "204":
+          description: Gelöscht
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/admin/users/{id}/password:
+    put:
+      operationId: setUserPassword
+      summary: >-
+        Setzt das Passwort eines lokalen Benutzers und beendet dessen Sitzungen. Für IAM-Benutzer
+        antwortet die API mit 409.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPasswordRequest"
+      responses:
+        "204":
+          description: Passwort gesetzt
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/admin/oidc-settings:
+    get:
+      operationId: getOidcSettings
+      summary: Liefert die OIDC-Einstellungen, nie das Client-Secret
+      responses:
+        "200":
+          description: Einstellungen
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OidcSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      operationId: updateOidcSettings
+      summary: Speichert die OIDC-Einstellungen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOidcSettingsRequest"
+      responses:
+        "200":
+          description: Gespeicherte Einstellungen
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OidcSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: c2r_session
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Ungültige Eingabe
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Nicht angemeldet oder falsche Anmeldedaten
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Rolle reicht nicht aus
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Nicht gefunden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Benutzername vergeben oder Aktion in diesem Zustand nicht erlaubt
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
     HelloResponse:
       type: object
@@ -55,4 +334,116 @@ components:
       required: [message]
       properties:
         message:
+          type: string
+    Role:
+      type: string
+      enum: [ADMIN, MANAGER, USER]
+    User:
+      type: object
+      required: [id, username, displayName, email, role, source]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: [string, "null"]
+        role:
+          $ref: "#/components/schemas/Role"
+        source:
+          type: string
+          enum: [local, oidc]
+    AuthProvidersResponse:
+      type: object
+      required: [oidc]
+      properties:
+        oidc:
+          description: null, solange kein Identity Provider konfiguriert und aktiviert ist
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [displayName]
+              properties:
+                displayName:
+                  type: string
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    CreateUserRequest:
+      type: object
+      required: [username, displayName, role, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+        displayName:
+          type: string
+          minLength: 1
+        email:
+          type: [string, "null"]
+        role:
+          $ref: "#/components/schemas/Role"
+        password:
+          type: string
+          minLength: 8
+    UpdateUserRequest:
+      type: object
+      minProperties: 1
+      properties:
+        username:
+          type: string
+          minLength: 1
+        displayName:
+          type: string
+          minLength: 1
+        email:
+          type: [string, "null"]
+        role:
+          $ref: "#/components/schemas/Role"
+    SetPasswordRequest:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 8
+    OidcSettings:
+      type: object
+      required: [enabled, displayName, issuerUrl, clientId, clientSecretSet, redirectUri]
+      properties:
+        enabled:
+          type: boolean
+        displayName:
+          type: string
+        issuerUrl:
+          type: string
+        clientId:
+          type: string
+        clientSecretSet:
+          type: boolean
+        redirectUri:
+          description: Im Identity Provider einzutragende Rücksprungadresse
+          type: string
+    UpdateOidcSettingsRequest:
+      description: Ist enabled true, müssen displayName, issuerUrl, clientId und ein Secret vorliegen.
+      type: object
+      required: [enabled, displayName, issuerUrl, clientId]
+      properties:
+        enabled:
+          type: boolean
+        displayName:
+          type: string
+        issuerUrl:
+          type: string
+        clientId:
+          type: string
+        clientSecret:
+          description: Fehlt das Feld, bleibt das gespeicherte Secret erhalten.
           type: string

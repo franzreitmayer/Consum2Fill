@@ -23,6 +23,8 @@ services:
       PORT: "3000"
       MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@db:27017/consumption2refill?authSource=admin
       WEB_DIST_DIR: /app/public
+      AUTH_SECRET: ${AUTH_SECRET:?set in .env}
+      PUBLIC_URL: ${PUBLIC_URL:-}
     ports:
       - "${APP_PORT:-3001}:3000"
     depends_on:
