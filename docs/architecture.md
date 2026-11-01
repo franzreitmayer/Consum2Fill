@@ -34,6 +34,12 @@ Es gibt genau zwei Container. Da `app` Frontend und API von derselben Adresse au
 
 `GET /api/health` meldet den Verbindungsstatus zur Datenbank und ist zugleich der Healthcheck des Containers.
 
+## Anmeldung
+
+Alle Routen außer den öffentlichen im Vertrag verlangen eine Sitzung, `/api/admin/*` zusätzlich die Rolle ADMIN (siehe ADR 0004). Ohne Sitzung zeigt das Frontend den Anmeldebildschirm mit lokaler Anmeldung und, wenn konfiguriert, der Anmeldung über den Identity Provider. Die OIDC-Daten pflegt ein Administrator in der Oberfläche unter „Administration“.
+
+Für Keycloak gilt: Die Issuer-URL muss vom Container `app` und vom Browser unter derselben Adresse erreichbar sein, `localhost` funktioniert deshalb im Container nicht. In Keycloak wird die in der Administration angezeigte Rücksprungadresse eingetragen.
+
 ## Entwicklung
 
 Im Container (Standard, siehe ADR 0003): `make docker-dev` startet `db` und `app` mit `docker-compose.dev.yml`. `app` mountet das Repo nach `/repo`, hält `node_modules` in Volumes und startet die API mit `tsx watch` samt Inspector sowie Vite, das `/api` an die API weiterleitet. Das Frontend läuft auf `WEB_PORT` (5173), die API direkt auf `APP_PORT` (3001), der Inspector auf `127.0.0.1:DEBUG_PORT` (9229).

@@ -7,7 +7,8 @@ export default defineConfig({
     // Reachable from a smartphone in the same network
     host: true,
     proxy: {
-      "/api": `http://localhost:${process.env.PORT ?? 3001}`,
+      // The object form keeps the browser's Host header, which the OIDC redirect URI is built from
+      "/api": { target: `http://localhost:${process.env.PORT ?? 3001}` },
     },
   },
   test: {

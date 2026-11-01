@@ -165,7 +165,7 @@ paths:
     patch:
       operationId: updateUser
       summary: >-
-        Ändert einen Benutzer. Bei IAM-Benutzern ist nur die Rolle änderbar. Der letzte
+        Ändert einen Benutzer. Bei IAM-Benutzern ist nur die Rolle änderbar. Der letzte lokale
         Administrator kann seine Rolle nicht verlieren.
       requestBody:
         required: true
@@ -192,7 +192,9 @@ paths:
           $ref: "#/components/responses/Conflict"
     delete:
       operationId: deleteUser
-      summary: Löscht einen Benutzer samt Sitzungen, nicht aber das eigene Konto
+      summary: >-
+        Löscht einen Benutzer samt Sitzungen, nicht aber das eigene Konto oder den letzten lokalen
+        Administrator
       responses:
         "204":
           description: Gelöscht
@@ -445,5 +447,8 @@ components:
         clientId:
           type: string
         clientSecret:
-          description: Fehlt das Feld, bleibt das gespeicherte Secret erhalten.
+          description: >-
+            Fehlt das Feld oder ist es leer, bleibt das gespeicherte Secret erhalten, solange
+            issuerUrl gleich bleibt. Bei geänderter issuerUrl antwortet die API mit 400, wenn
+            enabled true ist; sonst verwirft sie das Secret.
           type: string
