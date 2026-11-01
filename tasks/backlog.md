@@ -8,3 +8,4 @@ Reihenfolge nach Priorität. Der Status steht nur in der jeweiligen Task-Datei. 
 4. T-004: Prüfen, ob die Implementierung `docs/api/openapi.yaml` entspricht, und das in `make check` aufnehmen
 5. T-005: Anwendung als PWA installierbar machen, falls die Fachanforderungen es verlangen
 6. T-006: Entwicklung und Debugging im Docker-Container
+7. T-007: `.claude`-Commands, -Agents und den Format-Hook auf Hosts ohne pnpm nutzbar machen (`make docker-check`, Prettier im Container)

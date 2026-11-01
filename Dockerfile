@@ -1,3 +1,11 @@
+# Development image, see docker-compose.dev.yml. Source and dependencies live in volumes.
+FROM node:24-slim AS dev
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+WORKDIR /repo
+RUN corepack enable
+COPY package.json ./
+RUN corepack install
+
 FROM node:24-slim AS build
 WORKDIR /repo
 RUN corepack enable

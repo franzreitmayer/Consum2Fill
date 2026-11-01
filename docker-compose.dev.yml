@@ -1,0 +1,42 @@
+# Development overlay for docker-compose.yml: "make docker-dev", see docs/architecture.md
+services:
+  app:
+    # Keeps the production image of this project from being replaced
+    image: c2r-app-dev
+    build:
+      target: dev
+    restart: "no"
+    init: true
+    # The inspector flag stays here, next to the port mapping that limits it to this machine
+    command: >-
+      sh -c "pnpm install --frozen-lockfile && exec pnpm exec concurrently --names api,web
+      'pnpm --filter @c2r/api exec tsx watch --inspect=0.0.0.0:9229 --env-file-if-exists=../../.env src/server.ts'
+      'pnpm --filter @c2r/web dev'"
+    environment:
+      NODE_ENV: development
+      # Installs without a prompt when the container has no terminal
+      CI: "true"
+      WEB_DIST_DIR: !reset null
+      # File events from a Windows or macOS host do not reach the container
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "300"
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+      # The inspector allows running arbitrary code, so it stays on this machine
+      - "127.0.0.1:${DEBUG_PORT:-9229}:9229"
+    volumes:
+      - .:/repo
+      # Linux binaries of the dependencies, kept apart from the host checkout
+      - node-modules:/repo/node_modules
+      - node-modules-api:/repo/apps/api/node_modules
+      - node-modules-web:/repo/apps/web/node_modules
+      - node-modules-shared:/repo/packages/shared/node_modules
+    healthcheck:
+      # Leaves room for the first "pnpm install"
+      start_period: 5m
+
+volumes:
+  node-modules:
+  node-modules-api:
+  node-modules-web:
+  node-modules-shared:

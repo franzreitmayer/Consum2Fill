@@ -1,4 +1,6 @@
-.PHONY: check dev test lint typecheck
+.PHONY: check dev test lint typecheck docker-dev docker-stop docker-logs docker-shell docker-check
+
+DEV_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
 # Old Windows make builds cut "Path" at the first "\;" and pass that to child processes.
 ifdef Path
@@ -19,3 +21,18 @@ lint:
 
 typecheck:
 	node scripts/pnpm.mjs typecheck
+
+docker-dev:
+	$(DEV_COMPOSE) up --build -d
+
+docker-stop:
+	$(DEV_COMPOSE) down
+
+docker-logs:
+	$(DEV_COMPOSE) logs -f app
+
+docker-shell:
+	$(DEV_COMPOSE) exec app bash
+
+docker-check:
+	$(DEV_COMPOSE) exec app pnpm check

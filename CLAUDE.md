@@ -18,7 +18,7 @@ Zu Beginn jeder Session PROGRESS.md und den aktiven Task in tasks/ lesen; am End
 
 ## Befehle
 
-Voraussetzung: `nvm use 24`, `corepack enable`, `pnpm install`.
+Voraussetzung auf dem Host: `nvm use 24`, `corepack enable`, `pnpm install`. Für die Container-Befehle genügen Docker und `make`.
 
 | Zweck                     | Befehl                                 |
 | ------------------------- | -------------------------------------- |
@@ -30,15 +30,22 @@ Voraussetzung: `nvm use 24`, `corepack enable`, `pnpm install`.
 | Formatieren               | `pnpm format`                          |
 | Datenbank für Entwicklung | `docker compose up -d db`              |
 | Entwicklung               | `pnpm dev`                             |
+| Entwicklung im Container  | `make docker-dev`                      |
+| Logs des Dev-Containers   | `make docker-logs`                     |
+| Shell im Dev-Container    | `make docker-shell`                    |
+| Alles im Container prüfen | `make docker-check`                    |
+| Dev-Container stoppen     | `make docker-stop`                     |
 | Gesamtsystem in Docker    | `docker compose up --build -d`         |
+
+`pnpm`-Befehle lassen sich auch in `make docker-shell` ausführen. Debugging über `.vscode/launch.json`, siehe `docs/architecture.md`.
 
 Worktree nach dem Merge entfernen: `node scripts/remove-worktree.mjs T-<id>` (statt `git worktree remove`, das unter Windows an `node_modules` scheitert).
 
-Vor dem ersten Compose-Start `.env.example` nach `.env` kopieren. `pnpm dev` öffnet das Frontend auf Port 5173 und die API auf Port 3001. In Docker läuft beides auf `APP_PORT` (Standard 3001), MongoDB ist auf dem Host über `MONGO_PORT` (Standard 27018) erreichbar.
+Vor dem ersten Compose-Start `.env.example` nach `.env` kopieren. `pnpm dev` öffnet das Frontend auf Port 5173 und die API auf Port 3001. `make docker-dev` nutzt dieselben Ports im Container: Frontend auf `WEB_PORT` (Standard 5173), API auf `APP_PORT`, Inspector auf `127.0.0.1:DEBUG_PORT` (Standard 9229). Im Produktionsbetrieb in Docker läuft beides auf `APP_PORT` (Standard 3001). MongoDB ist auf dem Host über `MONGO_PORT` (Standard 27018) erreichbar.
 
 ## Harte Regeln
 
-1. **Definition of Done:** `make check` ist grün. Ein Task ohne grünen Check ist nicht fertig.
+1. **Definition of Done:** `make check` oder gleichwertig `make docker-check` ist grün. Ein Task ohne grünen Check ist nicht fertig.
 2. **API-Vertrag zuerst:** `docs/api/openapi.yaml` ist verbindlich. Erst den Vertrag ändern, dann Backend und Frontend. `packages/shared` folgt dem Vertrag.
 3. **Parallelarbeit:** Pro Task ein Worktree `.worktrees/T-<id>` und ein Branch `T-<id>` (`/start-task`). Nicht direkt auf `main` entwickeln.
 4. **Pfadgrenzen:** Nur die in der Task-Datei genannten Pfade ändern.
