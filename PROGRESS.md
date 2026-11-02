@@ -50,3 +50,10 @@ Jeder Task pflegt nur seinen eigenen Abschnitt (`## T-<id>`), siehe `/handoff`. 
 - **Aktueller Stand:** Branch `T-011`, Worktree `.worktrees/T-011`, nicht gemergt. `make docker-check` grün (API 628 Tests, Web 218 Tests); `make check` auf dem Host nicht ausführbar, weil dort pnpm fehlt. Der Dev-Stack des Worktrees ist gestoppt, seine eigene `.env` und seine Volumes bestehen weiter.
 - **Offene Probleme:** Die API erlaubt Kommas in Schlagworten, die Oberfläche nicht: Ein per API gesetztes `A,B` wird beim Auswählen als Vorschlag zu zwei Schlagworten. `PATCH` mit den Standardwerten auf einem Altdatensatz verschiebt `updatedAt` vermutlich (ungeprüft, nur über direkte API-Aufrufe erreichbar). Nicht auf einem echten Gerät geprüft: Handytastatur und IME. Nicht im Browser geprüft: 400 und 404 bei Material, Einsortieren einer kleineren Nummer, 2000 Zeichen ohne Leerzeichen auf der Karte. Die Sperre schützt nur bei einer App-Instanz.
 - **Nächster konkreter Schritt:** Auf `main` `git merge T-011` ausführen.
+
+## T-012
+
+- **Erledigt:** Import der 75 Materialien aus `resources/data/DIN_13232_A_B_C_Einzelartikelliste.csv` per `make initial-data`, eigener Parser, Vermerk in `dataimports`, Docker-Änderungen, ADR 0007. Mit echtem MongoDB im Produktions-Image geprüft: leere und gefüllte Datenbank, Fortsetzen, parallele Läufe, Neustart. Reviewer hat freigegeben.
+- **Aktueller Stand:** Branch `T-012`, Worktree `.worktrees/T-012`, nicht gemergt. `make docker-check` grün (API 705 Tests, Web 218 Tests); `make check` auf dem Host nicht ausführbar, weil dort pnpm fehlt. Die Produktionsläufe fanden vor dem letzten Commit statt, der nur Anführungszeichen mitten im Feld zusätzlich ablehnt.
+- **Offene Probleme:** Zwischen Abbruch und Fortsetzung gelöschte Standardmaterialien werden neu angelegt. Wird `make initial-data` vergessen, weist die Anwendung nicht darauf hin. Die Wegwerf-Volumes der Compose-Projekte `t012prod`, `t012a` und `t012b` bestehen noch.
+- **Nächster konkreter Schritt:** Auf `main` `git merge T-012` ausführen, danach einmal `make initial-data`.
