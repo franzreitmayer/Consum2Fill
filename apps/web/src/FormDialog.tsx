@@ -8,7 +8,7 @@ import DialogTitle from "@mui/material/DialogTitle";
 import Stack from "@mui/material/Stack";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { errorMessage } from "./api";
 
 interface FormDialogProps {
@@ -33,6 +33,13 @@ export function FormDialog({
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorAlert = useRef<HTMLDivElement>(null);
+
+  // In a long form the message at the top can be outside of the scrolled area.
+  useEffect(() => {
+    // Optional call: jsdom in the tests does not implement it.
+    if (error) errorAlert.current?.scrollIntoView?.({ block: "nearest" });
+  }, [error]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -63,7 +70,11 @@ export function FormDialog({
         <DialogTitle sx={{ overflowWrap: "anywhere" }}>{title}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
-            {error && <Alert severity="error">{error}</Alert>}
+            {error && (
+              <Alert ref={errorAlert} severity="error">
+                {error}
+              </Alert>
+            )}
             {children}
           </Stack>
         </DialogContent>

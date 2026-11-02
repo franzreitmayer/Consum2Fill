@@ -26,6 +26,10 @@ const NAV_ITEMS: readonly NavItem[] = [
   { view: "admin", label: "Administration", roles: ["ADMIN"] },
 ];
 
+function isAllowed(view: View, role: Role): boolean {
+  return NAV_ITEMS.some((item) => item.view === view && item.roles.includes(role));
+}
+
 interface AuthenticatedAppProps {
   api: ApiClient;
   user: User;
@@ -44,12 +48,29 @@ export function AuthenticatedApp({
   const [view, setView] = useState<View>("home");
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [unsavedNotice, setUnsavedNotice] = useState<string | null>(null);
 
   const navItems = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
   // The view is checked against the role as well. The role here only changes with the user prop:
   // when an admin edits the own account, or when a 403 in the master data reloads the user.
   // A role taken away elsewhere stays unnoticed until then.
   const activeView: View = navItems.some((item) => item.view === view) ? view : "home";
+
+  function changeView(next: View) {
+    setUnsavedNotice(null);
+    setView(next);
+  }
+
+  /** The master data only report a user after a rejected write (403). */
+  function handleUserAfterRejectedWrite(updated: User) {
+    if (!isAllowed("masterData", updated.role)) {
+      changeView("home");
+      setUnsavedNotice(
+        "Die Änderung wurde nicht gespeichert, weil die Berechtigung für die Stammdaten entzogen wurde.",
+      );
+    }
+    onUserChange(updated);
+  }
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -84,7 +105,7 @@ export function AuthenticatedApp({
                 key={item.view}
                 label={item.label}
                 active={activeView === item.view}
-                onClick={() => setView(item.view)}
+                onClick={() => changeView(item.view)}
               />
             ))}
           </Box>
@@ -96,9 +117,19 @@ export function AuthenticatedApp({
             {logoutError}
           </Alert>
         )}
+        {unsavedNotice && (
+          <Alert
+            severity="warning"
+            closeText="Meldung schließen"
+            onClose={() => setUnsavedNotice(null)}
+            sx={{ mb: 2 }}
+          >
+            {unsavedNotice}
+          </Alert>
+        )}
         {activeView === "home" && <HomeView api={api} user={user} />}
         {activeView === "masterData" && (
-          <MasterDataArea api={api} onCurrentUserChange={onUserChange} />
+          <MasterDataArea api={api} onCurrentUserChange={handleUserAfterRejectedWrite} />
         )}
         {activeView === "admin" && (
           <AdminArea

@@ -56,4 +56,4 @@ Jeder Task läuft in einem eigenen Worktree unter `.worktrees/T-<id>`. `pnpm che
 
 ## Fachlichkeit
 
-Das Domänenmodell besteht aus Material, Lagerort, Verbrauch und Bestellung (siehe ADR 0005). Verbrauch und Bestellung verweisen per GUID auf Lagerort und Material. Die Datensätze haben CRUD-Endpoints unter `/api`. In der Oberfläche pflegen ADMIN und MANAGER die Lagerorte unter „Stammdaten“; für Material, Verbrauch und Bestellung gibt es noch keine Oberfläche. Bestand wird nicht geführt.
+Das Domänenmodell besteht aus Material, Lagerort, Verbrauch und Bestellung (siehe ADR 0005). Verbrauch und Bestellung verweisen per GUID auf Lagerort und Material. Die Datensätze haben CRUD-Endpoints unter `/api`. In der Oberfläche pflegen ADMIN und MANAGER Lagerorte und Material unter „Stammdaten“, die Suche über Material läuft im Browser. Für Verbrauch und Bestellung gibt es noch keine Oberfläche. Bestand wird nicht geführt.
