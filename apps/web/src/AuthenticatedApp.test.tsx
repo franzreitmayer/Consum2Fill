@@ -176,6 +176,85 @@ describe("AuthenticatedApp navigation", () => {
     expect(await screen.findByText("Hauptlager")).toBeTruthy();
   });
 
+  describe("tap on the active item", () => {
+    const LOCATIONS_ROUTE = `GET ${API_PATHS.storageLocations}`;
+    const MATERIALS_ROUTE = `GET ${API_PATHS.materials}`;
+    const LIST_ROUTE = `GET ${API_PATHS.consumptions}`;
+
+    it("loads the capture again and keeps the filter", async () => {
+      const stub = stubRoutes("USER");
+      const keller = { ...LOCATION, id: "l2", number: 2, name: "Keller" };
+      stub.routes[LOCATIONS_ROUTE] = json([LOCATION, keller]);
+
+      render(appWithRole("USER"));
+      await screen.findByText("Nr. 1");
+      const filter = screen.getByRole("combobox", { name: "Nach Lagerort filtern" });
+      fireEvent.change(filter, { target: { value: LOCATION.id } });
+      stub.routes[LIST_ROUTE] = json([CONSUMPTION, { ...CONSUMPTION, id: "c2", number: 2 }]);
+      stub.routes[MATERIALS_ROUTE] = json([
+        SCREW,
+        { ...SCREW, id: "m2", number: 2, name: "Mutter" },
+      ]);
+      fireEvent.click(screen.getByRole("button", { name: "Erfassung" }));
+
+      expect(await screen.findByText("Nr. 2")).toBeTruthy();
+      expect(screen.getByRole("combobox", { name: "Nach Lagerort filtern" })).toHaveProperty(
+        "value",
+        LOCATION.id,
+      );
+      expect(screen.getByText("Nr. 1")).toBeTruthy();
+      expect(stub.bodies(LOCATIONS_ROUTE)).toHaveLength(2);
+      await waitFor(() => expect(stub.bodies(MATERIALS_ROUTE)).toHaveLength(2));
+    });
+
+    it("keeps the list when loading again fails", async () => {
+      const stub = stubRoutes("USER");
+
+      render(appWithRole("USER"));
+      await screen.findByText("Nr. 1");
+      stub.routes[LIST_ROUTE] = json({ message: "Kaputt" }, 500);
+      stub.routes[LOCATIONS_ROUTE] = json({ message: "Kaputt" }, 500);
+      fireEvent.click(screen.getByRole("button", { name: "Erfassung" }));
+
+      await waitFor(() => expect(stub.bodies(LIST_ROUTE)).toHaveLength(2));
+      await waitFor(() => expect(stub.bodies(LOCATIONS_ROUTE)).toHaveLength(2));
+      await new Promise((resolve) => setTimeout(resolve));
+      expect(screen.getByText("Nr. 1")).toBeTruthy();
+      expect(screen.queryByText("Kaputt")).toBeNull();
+    });
+
+    it("loads the master data again and stays in the tab", async () => {
+      const stub = stubRoutes("MANAGER");
+
+      render(appWithRole("MANAGER"));
+      fireEvent.click(screen.getByRole("button", { name: "Stammdaten" }));
+      await screen.findByText("Hauptlager");
+      stub.routes[LOCATIONS_ROUTE] = json([
+        LOCATION,
+        { ...LOCATION, id: "l2", number: 2, name: "Keller" },
+      ]);
+      fireEvent.click(screen.getByRole("button", { name: "Stammdaten" }));
+
+      expect(await screen.findByText("Keller")).toBeTruthy();
+      expect(screen.getByRole("tab", { name: "Lagerorte", selected: true })).toBeTruthy();
+    });
+
+    it("does not load anything twice when changing the view", async () => {
+      const stub = stubRoutes("MANAGER");
+
+      render(appWithRole("MANAGER"));
+      await screen.findByText("Nr. 1");
+      fireEvent.click(screen.getByRole("button", { name: "Erfassung" }));
+      await waitFor(() => expect(stub.bodies(LIST_ROUTE)).toHaveLength(2));
+      fireEvent.click(screen.getByRole("button", { name: "Stammdaten" }));
+      await screen.findByText("Hauptlager");
+      fireEvent.click(screen.getByRole("button", { name: "Erfassung" }));
+      await screen.findByText("Nr. 1");
+
+      expect(stub.bodies(LIST_ROUTE)).toHaveLength(3);
+    });
+  });
+
   it("does not show storage locations in the administration", async () => {
     const stub = stubRoutes("ADMIN");
 

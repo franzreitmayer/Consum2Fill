@@ -13,10 +13,12 @@ type MasterDataTab = "locations" | "materials";
 
 interface MasterDataAreaProps {
   api: ApiClient;
+  /** A change loads the lists of both panels again in the background. */
+  reloadSignal?: number;
   onCurrentUserChange: (user: User) => void;
 }
 
-export function MasterDataArea({ api, onCurrentUserChange }: MasterDataAreaProps) {
+export function MasterDataArea({ api, reloadSignal, onCurrentUserChange }: MasterDataAreaProps) {
   const [tab, setTab] = useState<MasterDataTab>("locations");
 
   // Both panels stay mounted so that switching tabs keeps the search and the notices. Each panel
@@ -54,6 +56,7 @@ export function MasterDataArea({ api, onCurrentUserChange }: MasterDataAreaProps
         <StorageLocationsAdmin
           api={api}
           active={tab === "locations"}
+          reloadSignal={reloadSignal}
           onCurrentUserChange={onCurrentUserChange}
         />
       </Box>
@@ -66,6 +69,7 @@ export function MasterDataArea({ api, onCurrentUserChange }: MasterDataAreaProps
         <MaterialsAdmin
           api={api}
           active={tab === "materials"}
+          reloadSignal={reloadSignal}
           onCurrentUserChange={onCurrentUserChange}
         />
       </Box>

@@ -737,7 +737,7 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     Forbidden:
-      description: Rolle reicht nicht aus, oder das Passwort muss zuerst geändert werden (mustChangePassword)
+      description: Rolle reicht nicht aus, der Eintrag gehört einem anderen Benutzer, oder das Passwort muss zuerst geändert werden (mustChangePassword)
       content:
         application/json:
           schema:

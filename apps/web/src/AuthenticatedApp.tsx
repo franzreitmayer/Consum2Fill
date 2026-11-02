@@ -49,12 +49,19 @@ export function AuthenticatedApp({
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [unsavedNotice, setUnsavedNotice] = useState<string | null>(null);
+  // Counts the taps on the active menu item, for loading the lists of the view again.
+  const [reloadSignal, setReloadSignal] = useState(0);
 
   const navItems = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
   // The view is checked against the role as well. The role here only changes with the user prop:
   // when an admin edits the own account, or when a 403 in the master data or the capture reloads
   // the user. A role taken away elsewhere stays unnoticed until then.
   const activeView: View = navItems.some((item) => item.view === view) ? view : "capture";
+
+  function handleNavClick(next: View) {
+    if (next === activeView) setReloadSignal((current) => current + 1);
+    else changeView(next);
+  }
 
   function changeView(next: View) {
     setUnsavedNotice(null);
@@ -104,7 +111,7 @@ export function AuthenticatedApp({
               key={item.view}
               label={item.label}
               active={activeView === item.view}
-              onClick={() => changeView(item.view)}
+              onClick={() => handleNavClick(item.view)}
             />
           ))}
         </Box>
@@ -126,10 +133,19 @@ export function AuthenticatedApp({
           </Alert>
         )}
         {activeView === "capture" && (
-          <CaptureArea api={api} user={user} onCurrentUserChange={onUserChange} />
+          <CaptureArea
+            api={api}
+            user={user}
+            reloadSignal={reloadSignal}
+            onCurrentUserChange={onUserChange}
+          />
         )}
         {activeView === "masterData" && (
-          <MasterDataArea api={api} onCurrentUserChange={handleUserAfterRejectedWrite} />
+          <MasterDataArea
+            api={api}
+            reloadSignal={reloadSignal}
+            onCurrentUserChange={handleUserAfterRejectedWrite}
+          />
         )}
         {activeView === "admin" && (
           <AdminArea

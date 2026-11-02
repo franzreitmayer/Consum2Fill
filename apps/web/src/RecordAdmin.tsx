@@ -60,6 +60,8 @@ interface RecordAdminProps<T extends AdminRecord, Body> {
   createBlockedHint?: ReactNode;
   /** False while hidden in a tab; becoming active again refreshes the list in the background. */
   active?: boolean;
+  /** A change refreshes the list in the background; search, filter and notices stay. */
+  reloadSignal?: number;
   onCurrentUserChange: (user: User) => void;
   /** Only called with at least one record. */
   renderList: (records: T[], actions: RecordActions<T>) => ReactNode;
@@ -84,6 +86,7 @@ export function RecordAdmin<T extends AdminRecord, Body>({
   sortOrder = "asc",
   createBlockedHint,
   active = true,
+  reloadSignal,
   onCurrentUserChange,
   renderList,
   renderForm,
@@ -93,6 +96,7 @@ export function RecordAdmin<T extends AdminRecord, Body>({
   const [notice, setNotice] = useState<Notice | null>(null);
   const userRequest = useRef<AbortController | null>(null);
   const wasActive = useRef(active);
+  const seenReloadSignal = useRef(reloadSignal);
 
   // An answer after leaving this view must not overwrite the session state, e.g. after a logout.
   useEffect(() => () => userRequest.current?.abort(), []);
@@ -102,6 +106,12 @@ export function RecordAdmin<T extends AdminRecord, Body>({
     if (active && !wasActive.current && state.kind !== "loading") refresh();
     wasActive.current = active;
   }, [active, state.kind, refresh]);
+
+  useEffect(() => {
+    if (seenReloadSignal.current === reloadSignal) return;
+    seenReloadSignal.current = reloadSignal;
+    if (state.kind !== "loading") refresh();
+  }, [reloadSignal, state.kind, refresh]);
 
   const noticeAlert = notice && <Alert severity={notice.severity}>{notice.message}</Alert>;
 

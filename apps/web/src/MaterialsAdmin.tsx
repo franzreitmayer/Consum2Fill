@@ -24,10 +24,16 @@ const TEXTS: RecordAdminTexts = {
 interface MaterialsAdminProps {
   api: ApiClient;
   active?: boolean;
+  reloadSignal?: number;
   onCurrentUserChange: (user: User) => void;
 }
 
-export function MaterialsAdmin({ api, active, onCurrentUserChange }: MaterialsAdminProps) {
+export function MaterialsAdmin({
+  api,
+  active,
+  reloadSignal,
+  onCurrentUserChange,
+}: MaterialsAdminProps) {
   // Lives here because the list is replaced while loading: a reload must not end the search.
   const [query, setQuery] = useState("");
 
@@ -38,6 +44,7 @@ export function MaterialsAdmin({ api, active, onCurrentUserChange }: MaterialsAd
       texts={TEXTS}
       recordLabel={(material) => material.name}
       active={active}
+      reloadSignal={reloadSignal}
       onCurrentUserChange={onCurrentUserChange}
       renderList={(materials, actions) => (
         <SearchableList

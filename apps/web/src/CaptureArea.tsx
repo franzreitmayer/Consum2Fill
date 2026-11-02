@@ -7,11 +7,13 @@ import { ConsumptionsAdmin } from "./ConsumptionsAdmin";
 interface CaptureAreaProps {
   api: ApiClient;
   user: User;
+  /** A change loads the lists again in the background. */
+  reloadSignal?: number;
   onCurrentUserChange: (user: User) => void;
 }
 
 /** A heading instead of tabs, until the orders join the consumptions here. */
-export function CaptureArea({ api, user, onCurrentUserChange }: CaptureAreaProps) {
+export function CaptureArea({ api, user, reloadSignal, onCurrentUserChange }: CaptureAreaProps) {
   return (
     <Stack spacing={2}>
       <Typography variant="h5" component="h1">
@@ -20,7 +22,12 @@ export function CaptureArea({ api, user, onCurrentUserChange }: CaptureAreaProps
       <Typography variant="h6" component="h2">
         Verbrauch/Bedarf
       </Typography>
-      <ConsumptionsAdmin api={api} user={user} onCurrentUserChange={onCurrentUserChange} />
+      <ConsumptionsAdmin
+        api={api}
+        user={user}
+        reloadSignal={reloadSignal}
+        onCurrentUserChange={onCurrentUserChange}
+      />
     </Stack>
   );
 }

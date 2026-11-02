@@ -315,6 +315,77 @@ describe("Consumption hint without master data", () => {
     expect(screen.queryByText(/Zum Erfassen fehlt/)).toBeNull();
   });
 
+  describe("loading again with the button", () => {
+    function reloadButton() {
+      return screen.getByRole("button", { name: "Neu laden" }) as HTMLButtonElement;
+    }
+
+    it("shows the progress and blocks the button until the answer", async () => {
+      let finish: (response: Response) => void = () => undefined;
+      const api = stubAll({ [MATERIALS_ROUTE]: json([]) });
+
+      renderArea("USER");
+      await screen.findByText(/Zum Erfassen fehlt/);
+      api.routes[MATERIALS_ROUTE] = (() =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        })) as unknown as RouteHandler;
+      fireEvent.click(reloadButton());
+
+      expect(screen.getByRole("progressbar", { name: "Wird neu geladen" })).toBeTruthy();
+      expect(reloadButton().disabled).toBe(true);
+      fireEvent.click(reloadButton());
+      await waitFor(() => expect(api.bodies(MATERIALS_ROUTE)).toHaveLength(2));
+
+      finish(Response.json([]));
+      await screen.findByRole("status");
+      expect(screen.queryByRole("progressbar", { name: "Wird neu geladen" })).toBeNull();
+      expect(reloadButton().disabled).toBe(false);
+      expect(api.bodies(MATERIALS_ROUTE)).toHaveLength(2);
+    });
+
+    it("says so when the answer is still empty", async () => {
+      const api = stubAll({ [MATERIALS_ROUTE]: json([]) });
+
+      renderArea("USER");
+      await screen.findByText(/Zum Erfassen fehlt/);
+      expect(screen.queryByText(/Die Daten fehlen weiterhin/)).toBeNull();
+      fireEvent.click(reloadButton());
+
+      expect(await screen.findByText("Neu geladen: Die Daten fehlen weiterhin.")).toBeTruthy();
+      expect(screen.getByText(/Zum Erfassen fehlt/)).toBeTruthy();
+      expect(api.bodies(MATERIALS_ROUTE)).toHaveLength(2);
+    });
+
+    it.each<[string, RouteHandler, string]>([
+      ["a server error", json({ message: "Kaputt" }, 500), "Kaputt"],
+      [
+        "a lost connection",
+        () => {
+          throw new TypeError("Failed to fetch");
+        },
+        NETWORK_MESSAGE,
+      ],
+    ])("shows %s with a retry that can succeed", async (_name, failure, message) => {
+      const api = stubAll({ [MATERIALS_ROUTE]: json([]) });
+
+      renderArea("USER");
+      await screen.findByText(/Zum Erfassen fehlt/);
+      api.routes[MATERIALS_ROUTE] = failure;
+      fireEvent.click(reloadButton());
+
+      expect(await screen.findByText(message)).toBeTruthy();
+      expect(screen.getByText(/Zum Erfassen fehlt/)).toBeTruthy();
+      expect(screen.queryByText(/Die Daten fehlen weiterhin/)).toBeNull();
+
+      api.routes[MATERIALS_ROUTE] = json([SCREW]);
+      fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+
+      expect(await screen.findByRole("button", { name: "Verbrauch erfassen" })).toBeTruthy();
+      expect(screen.queryByText(message)).toBeNull();
+    });
+  });
+
   it("still allows changing an existing record, showing its own values", async () => {
     stubAll({ [LOCATIONS_ROUTE]: json([]), [MATERIALS_ROUTE]: json([]) });
 
@@ -556,6 +627,7 @@ describe("Consumption dialog: create", () => {
 
     finish(Response.json(consumption(3), { status: 201 }));
     await screen.findByText("Verbrauch erfasst.");
+    expect(api.bodies(CREATE_ROUTE)).toHaveLength(1);
   });
 });
 
@@ -769,6 +841,30 @@ describe("Consumption dialog: change", () => {
     expect(api.bodies(PATCH_FIRST)).toEqual([{ quantity: 3 }]);
   });
 
+  it("blocks both steps for an older quantity with too many decimals", async () => {
+    const old = consumption(1, { quantity: 1.23456 });
+    const api = stubAll({
+      [LIST_ROUTE]: json([old]),
+      [PATCH_FIRST]: json({ ...old, quantity: 2 }),
+    });
+
+    renderArea();
+    const dialog = await openEditFirst();
+
+    expect(quantityField(dialog).value).toBe("1,23456");
+    const plus = within(dialog).getByRole("button", { name: "Menge erhöhen" });
+    const minus = within(dialog).getByRole("button", { name: "Menge verringern" });
+    expect((plus as HTMLButtonElement).disabled).toBe(true);
+    expect((minus as HTMLButtonElement).disabled).toBe(true);
+
+    setQuantity(dialog, "2");
+    expect((plus as HTMLButtonElement).disabled).toBe(false);
+    press(dialog, "Speichern");
+
+    await screen.findByText("Verbrauch gespeichert.");
+    expect(api.bodies(PATCH_FIRST)).toEqual([{ quantity: 2 }]);
+  });
+
   it("does not reject an older record for having too many decimals", async () => {
     const old = consumption(1, { quantity: 1.23456 });
     const api = stubAll({ [LIST_ROUTE]: json([old]), [PATCH_FIRST]: json(old) });
@@ -780,6 +876,25 @@ describe("Consumption dialog: change", () => {
 
     await screen.findByText("Verbrauch gespeichert.");
     expect(api.bodies(PATCH_FIRST)).toEqual([{ storageLocationId: CELLAR.id }]);
+  });
+});
+
+describe("Consumption quantity with thousands points", () => {
+  it("refuses it with a clear message and blocks the steps", async () => {
+    const api = stubAll();
+    renderArea();
+    const dialog = await openCreate();
+    fireEvent.change(locationField(dialog), { target: { value: MAIN.id } });
+    await chooseMaterial(dialog, "schr", "Schraube (Stück)");
+    setQuantity(dialog, "1.000");
+
+    expect(
+      (within(dialog).getByRole("button", { name: "Menge erhöhen" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    press(dialog, "Speichern");
+
+    expect(await within(dialog).findByText(/ohne Tausenderpunkt/)).toBeTruthy();
+    expect(api.bodies(CREATE_ROUTE)).toHaveLength(0);
   });
 });
 

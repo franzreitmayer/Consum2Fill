@@ -23,12 +23,14 @@ const TEXTS: RecordAdminTexts = {
 interface StorageLocationsAdminProps {
   api: ApiClient;
   active?: boolean;
+  reloadSignal?: number;
   onCurrentUserChange: (user: User) => void;
 }
 
 export function StorageLocationsAdmin({
   api,
   active,
+  reloadSignal,
   onCurrentUserChange,
 }: StorageLocationsAdminProps) {
   return (
@@ -38,6 +40,7 @@ export function StorageLocationsAdmin({
       texts={TEXTS}
       recordLabel={(location) => location.name}
       active={active}
+      reloadSignal={reloadSignal}
       onCurrentUserChange={onCurrentUserChange}
       renderList={(locations, { onEdit, onDelete }) => (
         <RecordList>

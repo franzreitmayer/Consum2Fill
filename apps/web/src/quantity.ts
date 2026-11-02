@@ -15,9 +15,19 @@ export function formatQuantity(value: number): string {
   });
 }
 
-/** Comma or point as the separator. A point is never a thousands separator. */
+/**
+ * "1.000" would silently become 1 while a German reader means one thousand, so it is refused. A
+ * leading 0 is no thousands notation: "0.125" stays a decimal. "1,000" stays 1: the comma is the
+ * German decimal separator, so this is the correct reading of it and not a guess.
+ */
+function hasThousandsPoints(text: string): boolean {
+  return /^[1-9]\d{0,2}(\.\d{3})+(,\d*)?$/.test(text.trim());
+}
+
+/** Comma or point as the decimal separator. */
 function parseDecimal(text: string): number | null {
   const trimmed = text.trim();
+  if (hasThousandsPoints(trimmed)) return null;
   if (!/^-?(\d+([.,]\d*)?|[.,]\d+)$/.test(trimmed)) return null;
   return Number(trimmed.replace(",", "."));
 }
@@ -30,6 +40,12 @@ function countDecimals(text: string): number {
 /** Validates a typed quantity for sending. */
 export function parseQuantity(text: string): ParsedQuantity {
   if (text.trim() === "") return { ok: false, message: "Bitte eine Menge eingeben." };
+  if (hasThousandsPoints(text)) {
+    return {
+      ok: false,
+      message: "Bitte ohne Tausenderpunkt eingeben, zum Beispiel 1000 oder 1,5.",
+    };
+  }
   const value = parseDecimal(text);
   if (value === null) {
     return { ok: false, message: "Die Menge muss eine Zahl sein, zum Beispiel 1,5." };
@@ -61,12 +77,13 @@ export function addQuantities(a: number, b: number): number {
 
 /**
  * The text after a press on + or −, or null when the step is not possible: the result would be 0 or
- * smaller or too big, or the text is no number. An empty field can only go up, to 1.
+ * smaller or too big, or the text is no number. An empty field can only go up, to 1. More decimals
+ * than can be saved are blocked as well: a step must not round an older value without being asked.
  */
 export function stepQuantity(text: string, delta: number): string | null {
   if (text.trim() === "") return delta > 0 ? formatQuantity(delta) : null;
   const value = parseDecimal(text);
-  if (value === null) return null;
+  if (value === null || countDecimals(text) > MAX_QUANTITY_DECIMALS) return null;
   const result = addQuantities(value, delta);
   return result > 0 && result <= MAX_QUANTITY ? formatQuantity(result) : null;
 }

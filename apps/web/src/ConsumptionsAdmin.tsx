@@ -11,7 +11,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError, type ApiClient } from "./api";
 import { ConsumptionCard } from "./ConsumptionCard";
 import {
@@ -49,16 +49,57 @@ function missingDataHint(user: User, hasLocations: boolean): string {
   return `Zum Erfassen fehlt ${hasLocations ? "Material" : "mindestens ein Lagerort"}. ${solution}`;
 }
 
+/** The visible outcome of loading the lists again on request. */
+type LookupCheck =
+  | { kind: "idle" }
+  | { kind: "checking" }
+  | { kind: "checked" }
+  | { kind: "failed"; message: string };
+
 interface ConsumptionsAdminProps {
   api: ApiClient;
   user: User;
+  /** A change loads all lists again in the background. */
+  reloadSignal?: number;
   onCurrentUserChange: (user: User) => void;
 }
 
-export function ConsumptionsAdmin({ api, user, onCurrentUserChange }: ConsumptionsAdminProps) {
+export function ConsumptionsAdmin({
+  api,
+  user,
+  reloadSignal,
+  onCurrentUserChange,
+}: ConsumptionsAdminProps) {
   const locations = useApiResource<StorageLocation[]>(api, API_PATHS.storageLocations);
   const materials = useApiResource<Material[]>(api, API_PATHS.materials);
   const [filterId, setFilterId] = useState(ALL_LOCATIONS);
+  const [lookupCheck, setLookupCheck] = useState<LookupCheck>({ kind: "idle" });
+  const latestCheck = useRef(0);
+  const seenReloadSignal = useRef(reloadSignal);
+
+  /** Unlike refreshLookups, this reports the outcome for the hint about missing master data. */
+  function checkLookups() {
+    latestCheck.current += 1;
+    const check = latestCheck.current;
+    setLookupCheck({ kind: "checking" });
+    void Promise.all([locations.refreshWithResult(), materials.refreshWithResult()]).then(
+      (results) => {
+        if (check !== latestCheck.current) return;
+        const failed = results.find((result) => result.kind === "failed");
+        if (failed) setLookupCheck(failed);
+        else if (results.some((result) => result.kind === "cancelled")) {
+          setLookupCheck({ kind: "idle" });
+        } else setLookupCheck({ kind: "checked" });
+      },
+    );
+  }
+
+  useEffect(() => {
+    if (seenReloadSignal.current === reloadSignal) return;
+    seenReloadSignal.current = reloadSignal;
+    if (locations.state.kind !== "loading" && materials.state.kind !== "loading") checkLookups();
+    // Only the signal starts this; the rest is read as of that moment.
+  }, [reloadSignal]);
 
   // Names, filter and dialog depend on both lists, and a failed list must not look like an empty
   // one. So the records only appear with both lists. A failed refresh later keeps the old lists.
@@ -120,16 +161,35 @@ export function ConsumptionsAdmin({ api, user, onCurrentUserChange }: Consumptio
         texts={TEXTS}
         sortOrder="desc"
         recordLabel={deleteLabel}
+        reloadSignal={reloadSignal}
         createBlockedHint={
           canCreate ? undefined : (
             <Stack spacing={1} sx={{ alignItems: "flex-start" }}>
               <Alert severity="info" sx={{ width: "100%" }}>
                 {missingDataHint(user, locationList.length > 0)}
               </Alert>
-              {/* A USER has no other view to come back from, which would load the lists again. */}
-              <Button variant="outlined" onClick={refreshLookups}>
-                Neu laden
-              </Button>
+              {lookupCheck.kind === "failed" ? (
+                <ErrorWithRetry message={lookupCheck.message} onRetry={checkLookups} />
+              ) : (
+                <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+                  {/* A USER has no other view to come back from, which would load the lists. */}
+                  <Button
+                    variant="outlined"
+                    disabled={lookupCheck.kind === "checking"}
+                    onClick={checkLookups}
+                  >
+                    Neu laden
+                  </Button>
+                  {lookupCheck.kind === "checking" && (
+                    <CircularProgress size={24} aria-label="Wird neu geladen" />
+                  )}
+                </Stack>
+              )}
+              {lookupCheck.kind === "checked" && (
+                <Typography role="status" color="text.secondary">
+                  Neu geladen: Die Daten fehlen weiterhin.
+                </Typography>
+              )}
             </Stack>
           )
         }
