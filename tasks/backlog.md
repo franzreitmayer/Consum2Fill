@@ -12,3 +12,4 @@ Reihenfolge nach Priorität. Der Status steht nur in der jeweiligen Task-Datei. 
 8. T-008: Anmeldung und Authentifizierung
 9. T-009: Anmeldung härten: Limit und Fehler-Cache für `/api/auth/oidc/login`, 401 vor der JSON-Prüfung unter `/api/admin`, Sicherheitsheader, Ablösen der Startpasswörter erzwingen
 10. T-010: Hauptmenü Stammdaten mit Lagerorten
+11. T-011: Materialstammdaten
