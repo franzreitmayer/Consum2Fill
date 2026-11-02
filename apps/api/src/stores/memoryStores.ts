@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type {
+  DataImportStore,
   MaterialFields,
   MovementFields,
   MovementStore,
@@ -179,8 +180,19 @@ function createMemoryMovementStore(): MovementStore {
   };
 }
 
+function createMemoryDataImportStore(): DataImportStore {
+  const completed = new Set<string>();
+  return {
+    isCompleted: async (id) => completed.has(id),
+    async markCompleted(id) {
+      completed.add(id);
+    },
+  };
+}
+
 export function createMemoryStores() {
   return {
+    dataImports: createMemoryDataImportStore(),
     users: createMemoryUserStore(),
     sessions: createMemorySessionStore(),
     oidcSettings: createMemoryOidcSettingsStore(),

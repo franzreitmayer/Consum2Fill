@@ -26,6 +26,7 @@ COPY --from=build /deploy/node_modules ./node_modules
 COPY --from=build /deploy/package.json ./package.json
 COPY --from=build /repo/apps/api/dist ./dist
 COPY --from=build /repo/apps/web/dist ./public
+COPY resources/data ./resources/data
 USER node
 EXPOSE 3000
 CMD ["node", "dist/server.js"]

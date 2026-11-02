@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConsumptionModel } from "../models/consumption.js";
 import { CounterModel } from "../models/counter.js";
+import { DataImportModel } from "../models/dataImport.js";
 import { MaterialModel } from "../models/material.js";
 import { OrderModel } from "../models/order.js";
 import { UserModel } from "../models/user.js";
@@ -60,6 +61,47 @@ describe("users in the Mongo store", () => {
     });
 
     expect(user.mustChangePassword).toBe(true);
+  });
+});
+
+describe("data imports in the Mongo store", () => {
+  function mockUpsert(result: Promise<unknown>) {
+    return vi.spyOn(DataImportModel, "updateOne").mockReturnValue({ exec: () => result } as never);
+  }
+
+  it("reads the note by its id", async () => {
+    const spy = vi.spyOn(DataImportModel, "exists");
+    spy.mockReturnValueOnce({ exec: () => Promise.resolve({ _id: "x" }) } as never);
+    spy.mockReturnValueOnce({ exec: () => Promise.resolve(null) } as never);
+
+    expect(await mongoStores.dataImports.isCompleted("x")).toBe(true);
+    expect(await mongoStores.dataImports.isCompleted("y")).toBe(false);
+    expect(spy).toHaveBeenCalledWith({ _id: "x" });
+  });
+
+  it("sets the date only when it inserts the note", async () => {
+    const spy = mockUpsert(Promise.resolve({}));
+
+    await mongoStores.dataImports.markCompleted("x");
+
+    expect(spy).toHaveBeenCalledWith(
+      { _id: "x" },
+      { $setOnInsert: { completedAt: expect.any(Date) as Date } },
+      { upsert: true },
+    );
+  });
+
+  it("accepts the note of a parallel run", async () => {
+    mockUpsert(Promise.reject(Object.assign(new Error("dup"), { code: 11000 })));
+
+    await expect(mongoStores.dataImports.markCompleted("x")).resolves.toBeUndefined();
+  });
+
+  it("passes on other errors", async () => {
+    const failure = new Error("network");
+    mockUpsert(Promise.reject(failure));
+
+    await expect(mongoStores.dataImports.markCompleted("x")).rejects.toBe(failure);
   });
 });
 

@@ -6,11 +6,17 @@ export interface Config {
   publicUrl: string | undefined;
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+// For processes that only need the database, such as the data import
+export function loadMongoUri(env: NodeJS.ProcessEnv = process.env): string {
   const mongoUri = env.MONGODB_URI;
   if (!mongoUri) {
     throw new Error("MONGODB_URI is not set, see .env.example");
   }
+  return mongoUri;
+}
+
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+  const mongoUri = loadMongoUri(env);
   const authSecret = env.AUTH_SECRET;
   if (!authSecret) {
     throw new Error("AUTH_SECRET is not set, see .env.example");

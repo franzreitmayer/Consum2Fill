@@ -36,12 +36,13 @@ Voraussetzung auf dem Host: `nvm use 24`, `corepack enable`, `pnpm install`. Fü
 | Alles im Container prüfen | `make docker-check`                    |
 | Dev-Container stoppen     | `make docker-stop`                     |
 | Gesamtsystem in Docker    | `docker compose up --build -d`         |
+| Standarddaten importieren | `make initial-data`                    |
 
 `pnpm`-Befehle lassen sich auch in `make docker-shell` ausführen. Debugging über `.vscode/launch.json`, siehe `docs/architecture.md`.
 
 Worktree nach dem Merge entfernen: `node scripts/remove-worktree.mjs T-<id>` (statt `git worktree remove`, das unter Windows an `node_modules` scheitert).
 
-Vor dem ersten Compose-Start `.env.example` nach `.env` kopieren. `pnpm dev` öffnet das Frontend auf Port 5173 und die API auf Port 3001. `make docker-dev` nutzt dieselben Ports im Container: Frontend auf `WEB_PORT` (Standard 5173), API auf `APP_PORT`, Inspector auf `127.0.0.1:DEBUG_PORT` (Standard 9229). Im Produktionsbetrieb in Docker läuft beides auf `APP_PORT` (Standard 3001). MongoDB ist auf dem Host über `MONGO_PORT` (Standard 27018) erreichbar.
+Vor dem ersten Compose-Start `.env.example` nach `.env` kopieren. `make initial-data` gehört einmalig zum ersten Deployment und braucht den laufenden Stack (ADR 0007). `pnpm dev` öffnet das Frontend auf Port 5173 und die API auf Port 3001. `make docker-dev` nutzt dieselben Ports im Container: Frontend auf `WEB_PORT` (Standard 5173), API auf `APP_PORT`, Inspector auf `127.0.0.1:DEBUG_PORT` (Standard 9229). Im Produktionsbetrieb in Docker läuft beides auf `APP_PORT` (Standard 3001). MongoDB ist auf dem Host über `MONGO_PORT` (Standard 27018) erreichbar.
 
 ## Harte Regeln
 

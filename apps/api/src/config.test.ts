@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { loadConfig } from "./config.js";
+import { loadConfig, loadMongoUri } from "./config.js";
 
 const base = { MONGODB_URI: "mongodb://db/test", AUTH_SECRET: "secret" };
+
+describe("loadMongoUri", () => {
+  it("does not need AUTH_SECRET", () => {
+    expect(loadMongoUri({ MONGODB_URI: base.MONGODB_URI })).toBe(base.MONGODB_URI);
+  });
+
+  it("requires MONGODB_URI", () => {
+    expect(() => loadMongoUri({})).toThrow(/MONGODB_URI/);
+  });
+});
 
 describe("loadConfig", () => {
   it("requires AUTH_SECRET", () => {

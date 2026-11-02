@@ -7,5 +7,6 @@
 .env
 docs
 tasks
-resources
+resources/*
+!resources/data
 *.md

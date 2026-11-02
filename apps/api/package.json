@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
-    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --packages=external --alias:@c2r/shared=../../packages/shared/src/index.ts --outfile=dist/server.js",
+    "build": "esbuild src/server.ts src/initialData.ts --bundle --platform=node --format=esm --packages=external --alias:@c2r/shared=../../packages/shared/src/index.ts --outdir=dist",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

@@ -1,4 +1,4 @@
-.PHONY: check dev test lint typecheck docker-dev docker-stop docker-logs docker-shell docker-check
+.PHONY: check dev test lint typecheck docker-dev docker-stop docker-logs docker-shell docker-check initial-data
 
 DEV_COMPOSE := docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
@@ -33,6 +33,12 @@ docker-logs:
 
 docker-shell:
 	$(DEV_COMPOSE) exec app bash
+
+INITIAL_DATA_FILE := DIN_13232_A_B_C_Einzelartikelliste.csv
+
+# Runs in the running app container, whether it is the production or the development image
+initial-data:
+	docker compose exec -T app sh -c "if [ -f dist/initialData.js ]; then node dist/initialData.js resources/data/$(INITIAL_DATA_FILE); else pnpm --filter @c2r/api exec tsx src/initialData.ts /repo/resources/data/$(INITIAL_DATA_FILE); fi"
 
 docker-check:
 	$(DEV_COMPOSE) exec app pnpm check

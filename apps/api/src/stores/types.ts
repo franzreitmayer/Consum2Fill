@@ -109,7 +109,14 @@ export interface MovementStore extends RecordStore<MovementFields> {
   countByReference(reference: MovementReference, id: string): Promise<number>;
 }
 
+// Notes which data imports have been completed. Marking one again keeps the first date.
+export interface DataImportStore {
+  isCompleted(id: string): Promise<boolean>;
+  markCompleted(id: string): Promise<void>;
+}
+
 export interface Stores {
+  dataImports: DataImportStore;
   users: UserStore;
   sessions: SessionStore;
   oidcSettings: OidcSettingsStore;

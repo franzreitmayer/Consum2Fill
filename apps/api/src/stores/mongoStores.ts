@@ -1,6 +1,7 @@
 import mongoose, { type HydratedDocument, type Model } from "mongoose";
 import { ConsumptionModel } from "../models/consumption.js";
 import { CounterModel } from "../models/counter.js";
+import { DataImportModel } from "../models/dataImport.js";
 import { MaterialModel, type MaterialDocument } from "../models/material.js";
 import type { MovementDocument } from "../models/movement.js";
 import { OIDC_SETTINGS_ID, OidcSettingsModel } from "../models/oidcSettings.js";
@@ -10,6 +11,7 @@ import { SessionModel } from "../models/session.js";
 import { StorageLocationModel, type StorageLocationDocument } from "../models/storageLocation.js";
 import { UserModel, type UserFields } from "../models/user.js";
 import type {
+  DataImportStore,
   MaterialFields,
   MovementFields,
   MovementStore,
@@ -241,7 +243,26 @@ function createMongoMovementStore(model: Model<MovementDocument>, entity: string
   };
 }
 
+const mongoDataImportStore: DataImportStore = {
+  async isCompleted(id) {
+    return (await DataImportModel.exists({ _id: id }).exec()) !== null;
+  },
+  async markCompleted(id) {
+    try {
+      await DataImportModel.updateOne(
+        { _id: id },
+        { $setOnInsert: { completedAt: new Date() } },
+        { upsert: true },
+      ).exec();
+    } catch (err) {
+      // A parallel run set the note between the lookup and the insert of its upsert
+      if (!isMongoDuplicateKeyError(err)) throw err;
+    }
+  },
+};
+
 export const mongoStores: Stores = {
+  dataImports: mongoDataImportStore,
   users: mongoUserStore,
   sessions: mongoSessionStore,
   oidcSettings: mongoOidcSettingsStore,
@@ -276,5 +297,6 @@ export async function ensureMongoIndexes(): Promise<void> {
     ConsumptionModel.init(),
     OrderModel.init(),
     CounterModel.init(),
+    DataImportModel.init(),
   ]);
 }
