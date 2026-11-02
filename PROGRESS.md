@@ -22,3 +22,10 @@ Jeder Task pflegt nur seinen eigenen Abschnitt (`## T-<id>`), siehe `/handoff`. 
 - **Aktueller Stand:** Branch `T-008`, Worktree `.worktrees/T-008`, nicht gemergt. `pnpm check` im Container grün.
 - **Offene Probleme:** Härtungen in T-009. Startpasswörter sind öffentlich bekannt und müssen vor echtem Betrieb geändert werden. Anlegen, Bearbeiten und Löschen über die Oberfläche nur per Mock-Test geprüft, die API dazu per curl.
 - **Nächster konkreter Schritt:** `AUTH_SECRET` in die `.env` des Haupt-Checkouts eintragen, auf `main` `git merge T-008` und `make docker-dev` ausführen.
+
+## T-001
+
+- **Erledigt:** Material, Lagerort, Verbrauch und Bestellung mit Mongoose-Modellen, CRUD-Endpoints unter `/api`, GUID und fortlaufender Nummer, Rollenprüfung, Vertrag, gemeinsame Typen, ADR 0005. Gegen echtes MongoDB per Skript über die API geprüft: gesamter Ablauf, 25 parallele Anlagen, Rennen zwischen Löschen und Anlegen, Neustart des Containers. Das Skript liegt nicht im Repo. Reviewer hat nach einer Korrektur freigegeben.
+- **Aktueller Stand:** Branch `T-001`, Worktree `.worktrees/T-001`, nicht gemergt. `make docker-check` grün (API 431 Tests, Web 58 Tests); `make check` auf dem Host nicht ausführbar, weil dort pnpm fehlt. Der Dev-Stack des Worktrees ist gestoppt, seine eigene `.env` und seine Volumes bestehen weiter.
+- **Offene Probleme:** Keine Oberfläche für die neuen Daten. Die Rollen, das Löschverbot und die eindeutigen Namen sind Festlegungen aus ADR 0005, nicht aus der Anforderung. Die Mongo-Stores sind automatisch nur mit Mocks getestet, weil `pnpm check` keine Datenbank nutzen darf. Unter `/api/admin` kommt bei kaputtem JSON weiter 400 statt 401 (T-009). `parseEmail` lehnt NUL und einzelne Surrogate nicht ab. Der Vertrag nennt 413 und 415 nicht. Die Sperre schützt nur bei einer App-Instanz.
+- **Nächster konkreter Schritt:** Auf `main` `git merge T-001` ausführen.
