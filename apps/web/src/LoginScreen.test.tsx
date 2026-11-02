@@ -11,6 +11,7 @@ const USER: User = {
   email: null,
   role: "USER",
   source: "local",
+  mustChangePassword: false,
 };
 
 function submitCredentials() {
