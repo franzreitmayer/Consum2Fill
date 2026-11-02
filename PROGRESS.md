@@ -36,3 +36,10 @@ Jeder Task pflegt nur seinen eigenen Abschnitt (`## T-<id>`), siehe `/handoff`. 
 - **Aktueller Stand:** Branch `T-009`, Worktree `.worktrees/T-009`. `make docker-check` grün (API 557 Tests, Web 75 Tests); `make check` auf dem Host nicht ausführbar, weil dort pnpm fehlt. `main` enthält nur den Stand vor der Korrektur der Rennen (Merge `b05140c`).
 - **Offene Probleme:** OIDC mit echtem Provider nicht durchlaufen. Die Sperre hat kein Zeitlimit. Wird ein Benutzer während eines Updates gelöscht, gibt es vermutlich 500 statt 401 oder 404 (ungeprüft). Weitere Einschränkungen in ADR 0006. Neue Abhängigkeiten erreichen einen laufenden Dev-Container erst nach einem Neustart.
 - **Nächster konkreter Schritt:** Auf `main` `git merge T-009` ausführen, damit die Korrektur der Rennen ankommt.
+
+## T-010
+
+- **Erledigt:** Hauptmenü „Stammdaten“ für ADMIN und MANAGER mit den Lagerorten (Liste, Anlegen, Ändern, Löschen mit Bestätigung, Fehlermeldungen), Navigation je Rolle, Rückfall auf „Start“, wenn beim Schreiben eine entzogene Rolle auffällt. Im Browser bei 360 px mit Touch-Emulation gegen die echte API geprüft. Reviewer hat nach einer Korrekturrunde freigegeben.
+- **Aktueller Stand:** Branch `T-010`, Worktree `.worktrees/T-010`, enthält auch den Endstand von T-009, nicht gemergt. `make docker-check` grün (API 557 Tests, Web 131 Tests); `make check` auf dem Host nicht ausführbar, weil dort pnpm fehlt.
+- **Offene Probleme:** Ohne Schreibversuch bleibt ein Rollenentzug bis zum Neuladen unbemerkt; ein von anderen herabgestufter ADMIN behält so auch den Menüpunkt „Administration“, sieht dort aber nur den 403-Fehler. Beim Rückfall auf „Start“ erscheint keine Meldung, der Benutzer sieht nur die neue Rolle. Die Reihenfolge der Liste kann nach einem schnellen erneuten Senden bis zum nächsten Laden abweichen. Geht die Antwort auf ein Anlegen verloren und der Benutzer bricht ab, bleibt die Liste bis zum Ansichtswechsel veraltet. Echte Fingertipps und die Bildschirmtastatur sind nicht auf einem Gerät geprüft.
+- **Nächster konkreter Schritt:** Auf `main` `git merge T-010` ausführen, das bringt auch die Korrektur aus T-009 mit.
