@@ -167,5 +167,13 @@ export interface UpdateMovementRequest {
   quantity?: number;
 }
 
-export type Consumption = Movement;
+export interface RecordCreator {
+  id: string;
+  displayName: string;
+}
+
+export interface Consumption extends Movement {
+  createdBy: RecordCreator | null;
+}
+
 export type Order = Movement;

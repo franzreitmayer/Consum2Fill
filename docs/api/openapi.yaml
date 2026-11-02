@@ -522,14 +522,14 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Movement"
+                  $ref: "#/components/schemas/Consumption"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
     post:
       operationId: createConsumption
-      summary: Legt Verbrauch an. Schreibrecht haben alle Angemeldeten.
+      summary: Legt Verbrauch an. Schreibrecht haben alle Angemeldeten, createdBy setzt der Server.
       requestBody:
         required: true
         content:
@@ -542,7 +542,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Movement"
+                $ref: "#/components/schemas/Consumption"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -561,7 +561,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Movement"
+                $ref: "#/components/schemas/Consumption"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -570,7 +570,9 @@ paths:
           $ref: "#/components/responses/NotFound"
     patch:
       operationId: updateConsumption
-      summary: Ändert Verbrauch. Schreibrecht haben alle Angemeldeten.
+      summary: >-
+        Ändert Verbrauch. ADMIN und MANAGER dürfen alle Einträge ändern, USER nur eigene. Einträge ohne
+        createdBy dürfen nur ADMIN und MANAGER ändern.
       requestBody:
         required: true
         content:
@@ -583,7 +585,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Movement"
+                $ref: "#/components/schemas/Consumption"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -595,7 +597,8 @@ paths:
     delete:
       operationId: deleteConsumption
       summary: >-
-        Löscht Verbrauch. Schreibrecht haben alle Angemeldeten.
+        Löscht Verbrauch. ADMIN und MANAGER dürfen alle Einträge löschen, USER nur eigene. Einträge ohne
+        createdBy dürfen nur ADMIN und MANAGER löschen.
       responses:
         "204":
           description: Gelöscht
@@ -1061,6 +1064,27 @@ components:
         quantity:
           type: number
           exclusiveMinimum: 0
+    Consumption:
+      allOf:
+        - $ref: "#/components/schemas/Movement"
+        - type: object
+          required: [createdBy]
+          properties:
+            createdBy:
+              description: >-
+                Wer den Eintrag erfasst hat. Setzt der Server beim Anlegen, der Name bleibt nach dem
+                Löschen des Benutzers erhalten. null bei Einträgen von vor dieser Angabe.
+              oneOf:
+                - type: "null"
+                - $ref: "#/components/schemas/RecordCreator"
+    RecordCreator:
+      type: object
+      required: [id, displayName]
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
     CreateMovementRequest:
       type: object
       required: [storageLocationId, materialId, quantity]
