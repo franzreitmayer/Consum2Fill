@@ -48,6 +48,19 @@ describe.each(ALL_PATHS)("%s without a session", (path) => {
     expect(res.status).toBe(401);
   });
 
+  it("answers 401 for a body that cannot be parsed", async () => {
+    const malformed = await request(context.app)
+      .post(path)
+      .set("Content-Type", "application/json")
+      .send("{broken");
+    const tooLarge = await request(context.app)
+      .post(path)
+      .send({ name: "x".repeat(200 * 1024) });
+
+    expect(malformed.status).toBe(401);
+    expect(tooLarge.status).toBe(401);
+  });
+
   it("writes nothing", async () => {
     await request(context.app).post(path).send({ name: "Neu" });
 
@@ -102,6 +115,12 @@ describe("roles", () => {
       expect((await admin.get(item)).status).toBe(200);
     });
 
+    it("answers 403 for a body that cannot be parsed", async () => {
+      const res = await user.post(path).set("Content-Type", "application/json").send("{broken");
+
+      expect(res.status).toBe(403);
+    });
+
     it("can read", async () => {
       const existing = await admin.post(path).send(validBody(path));
 
@@ -144,6 +163,22 @@ describe("roles", () => {
       expect((await user.post(API_PATHS.consumptions).send({})).status).toBe(400);
       expect((await user.delete(`${API_PATHS.consumptions}/${UNKNOWN_ID}`)).status).toBe(404);
     });
+  });
+
+  it.each(ALL_PATHS)(
+    "answers 400 for a malformed body on %s when allowed to write",
+    async (path) => {
+      const res = await admin.post(path).set("Content-Type", "application/json").send("{broken");
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toEqual(expect.any(String));
+    },
+  );
+
+  it.each(["\u0000", "\ud800"])("rejects the character %j in a name", async (character) => {
+    const res = await admin.post(API_PATHS.materials).send({ name: `x${character}` });
+
+    expect(res.status).toBe(400);
   });
 
   it("applies a role change at once", async () => {

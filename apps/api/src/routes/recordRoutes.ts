@@ -1,5 +1,5 @@
 import type { Role } from "@c2r/shared";
-import { Router } from "express";
+import express, { Router } from "express";
 import { requireRole } from "../auth/sessions.js";
 import { HttpError } from "../http/errors.js";
 import { DuplicateKeyError, type RecordStore, type StoredRecord } from "../stores/types.js";
@@ -31,8 +31,9 @@ function toResponse<Fields extends object>(record: StoredRecord<Fields>) {
   };
 }
 
-// CRUD for one entity. Guards apply to the whole path, not to single routes, so that every method
-// answers 401 without a session and 403 without the role before anything else is looked at.
+// CRUD for one entity. Guards apply to the whole path, not to single routes, and run before the
+// body parser, so that every method answers 401 without a session and 403 without the role before
+// anything else is looked at. app.ts therefore mounts these routers ahead of its own parser.
 export function createRecordRouter<Fields extends object>(
   { requireSession, domainLock }: RouteContext,
   options: RecordRouterOptions<Fields>,
@@ -66,10 +67,15 @@ export function createRecordRouter<Fields extends object>(
     }
   }
 
-  router.use(path, requireSession, (req, res, next) => {
-    if (READ_METHODS.has(req.method)) next();
-    else requireWriteRole(req, res, next);
-  });
+  router.use(
+    path,
+    requireSession,
+    (req, res, next) => {
+      if (READ_METHODS.has(req.method)) next();
+      else requireWriteRole(req, res, next);
+    },
+    express.json(),
+  );
 
   router.get(path, async (_req, res) => {
     res.json((await store.list()).map(toResponse));

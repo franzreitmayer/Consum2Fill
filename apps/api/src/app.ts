@@ -56,6 +56,10 @@ export function createApp({
     domainLock: createMutex(),
   };
 
+  // Ahead of the parser below: these routers parse the body themselves, after their guards.
+  app.use(createMasterDataRouter(context));
+  app.use(createMovementRouter(context));
+
   app.use("/api", express.json());
 
   app.get(API_PATHS.hello, requireSession, (_req, res) => {
@@ -78,9 +82,6 @@ export function createApp({
   app.use("/api/admin", requireSession, requireAdmin);
   app.use(createAdminUsersRouter(context));
   app.use(createAdminOidcSettingsRouter(context));
-
-  app.use(createMasterDataRouter(context));
-  app.use(createMovementRouter(context));
 
   app.use("/api", (_req, res) => {
     const body: ErrorResponse = { message: "Not found" };

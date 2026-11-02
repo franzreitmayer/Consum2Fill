@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ConsumptionModel } from "../models/consumption.js";
 import { CounterModel } from "../models/counter.js";
 import { MaterialModel } from "../models/material.js";
+import { OrderModel } from "../models/order.js";
 import { isMongoDuplicateKeyError, mongoStores, nextRecordNumber } from "./mongoStores.js";
 import { DuplicateKeyError } from "./types.js";
 
@@ -63,6 +65,37 @@ describe("nextRecordNumber", () => {
 
     await expect(nextRecordNumber("materials")).rejects.toBe(failure);
     expect(spy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("countByReference", () => {
+  it.each(["materialId", "storageLocationId"] as const)("filters by %s", async (reference) => {
+    const spy = vi
+      .spyOn(ConsumptionModel, "countDocuments")
+      .mockReturnValue({ exec: () => Promise.resolve(2) } as never);
+
+    expect(await mongoStores.consumptions.countByReference(reference, "guid")).toBe(2);
+    expect(spy).toHaveBeenCalledWith({ [reference]: "guid" });
+  });
+
+  it("uses the collection of the entity", async () => {
+    const consumptions = vi.spyOn(ConsumptionModel, "countDocuments");
+    const orders = vi
+      .spyOn(OrderModel, "countDocuments")
+      .mockReturnValue({ exec: () => Promise.resolve(1) } as never);
+
+    expect(await mongoStores.orders.countByReference("materialId", "guid")).toBe(1);
+    expect(orders).toHaveBeenCalledOnce();
+    expect(consumptions).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["ConsumptionModel", ConsumptionModel],
+    ["OrderModel", OrderModel],
+  ])("has indexes for the references of %s", (_name, model) => {
+    const indexed = model.schema.indexes().map(([fields]) => Object.keys(fields)[0]);
+
+    expect(indexed).toEqual(expect.arrayContaining(["number", "materialId", "storageLocationId"]));
   });
 });
 

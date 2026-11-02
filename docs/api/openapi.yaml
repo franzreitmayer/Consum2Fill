@@ -831,6 +831,7 @@ components:
           type: string
     Material:
       type: object
+      description: Namen und Einheiten speichert die API ohne umgebende Leerzeichen.
       required: [id, number, name, unit, createdAt, updatedAt]
       properties:
         id:

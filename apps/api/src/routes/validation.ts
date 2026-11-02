@@ -39,6 +39,10 @@ function parseText(value: unknown, label: string): string {
 function parseRequiredText(value: unknown, label: string): string {
   const text = parseText(value, label);
   if (!text) throw badRequest(`${label} darf nicht leer sein.`);
+  // MongoDB would store a lone surrogate as U+FFFD, so that two different names could collide.
+  if (/\p{Cs}/u.test(text) || text.includes("\0")) {
+    throw badRequest(`${label} enthält ungültige Zeichen.`);
+  }
   return text;
 }
 

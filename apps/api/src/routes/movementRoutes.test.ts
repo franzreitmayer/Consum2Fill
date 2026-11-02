@@ -369,7 +369,7 @@ describe("master record deletion racing a movement", () => {
     });
   });
 
-  it("releases the lock after a failed write", async () => {
+  it("releases the lock after a rejected reference", async () => {
     const { admin, movement } = await createScenario();
 
     const rejected = await admin
