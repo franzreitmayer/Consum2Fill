@@ -66,6 +66,10 @@ export function parseCsv(input: string): CsvRow[] {
       text[position] !== SEPARATOR &&
       lineEndLength(text, position) === 0
     ) {
+      // Mostly a missing separator: read as text, it would import a wrong row without any notice.
+      if (text[position] === QUOTE) {
+        throw new CsvError(line, "Ein Anführungszeichen steht mitten in einem Feld.");
+      }
       position += 1;
     }
     return text.slice(start, position);

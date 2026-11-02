@@ -107,3 +107,12 @@ describe("parseCsv", () => {
     expect(error.message).toMatch(/^Zeile 2: .*schließenden/);
   });
 });
+
+describe("parseCsv with a quote inside an unquoted field", () => {
+  it("rejects a row with a missing separator and names its line", () => {
+    const input = 'Name;Beschreibung\nTubus "Mit Cuff; 8,0 mm"\n';
+
+    expect(() => parseCsv(input)).toThrow(/^Zeile 2: /);
+    expect(() => parseCsv(input)).toThrow(CsvError);
+  });
+});
