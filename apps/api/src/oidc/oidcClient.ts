@@ -33,11 +33,12 @@ export interface OidcClaims {
 export interface OidcClientPort {
   startAuthorization(connection: OidcConnection, redirectUri: string): Promise<OidcAuthorization>;
   finishAuthorization(connection: OidcConnection, callback: OidcCallback): Promise<OidcClaims>;
-  // Forgets cached provider metadata after the settings changed
+  // Forgets cached provider metadata and failures after the settings changed
   reset(): void;
 }
 
 const DISCOVERY_CACHE_MS = 5 * 60 * 1000;
+const DISCOVERY_FAILURE_CACHE_MS = 30 * 1000;
 const SCOPE = "openid profile email";
 
 function textClaim(value: unknown): string | null {
@@ -46,23 +47,35 @@ function textClaim(value: unknown): string | null {
 
 export function createOpenIdClient(fetchImpl?: client.CustomFetch): OidcClientPort {
   let cache: { key: string; config: client.Configuration; expiresAt: number } | undefined;
+  // So that a provider that cannot be reached is not asked again on every click. Keys only come
+  // from saved settings, and saving calls reset(), so that this map stays small.
+  const failures = new Map<string, { error: unknown; expiresAt: number }>();
 
   async function configure(connection: OidcConnection): Promise<client.Configuration> {
     const key = JSON.stringify(connection);
     if (cache?.key === key && cache.expiresAt > Date.now()) return cache.config;
+    const failure = failures.get(key);
+    if (failure && failure.expiresAt > Date.now()) throw failure.error;
 
     const issuer = new URL(connection.issuerUrl);
-    const config = await client.discovery(
-      issuer,
-      connection.clientId,
-      connection.clientSecret,
-      undefined,
-      {
-        // Plain http only for issuers configured that way, such as a local Keycloak
-        ...(issuer.protocol === "http:" ? { execute: [client.allowInsecureRequests] } : {}),
-        ...(fetchImpl ? { [client.customFetch]: fetchImpl } : {}),
-      },
-    );
+    let config: client.Configuration;
+    try {
+      config = await client.discovery(
+        issuer,
+        connection.clientId,
+        connection.clientSecret,
+        undefined,
+        {
+          // Plain http only for issuers configured that way, such as a local Keycloak
+          ...(issuer.protocol === "http:" ? { execute: [client.allowInsecureRequests] } : {}),
+          ...(fetchImpl ? { [client.customFetch]: fetchImpl } : {}),
+        },
+      );
+    } catch (error) {
+      failures.set(key, { error, expiresAt: Date.now() + DISCOVERY_FAILURE_CACHE_MS });
+      throw error;
+    }
+    failures.delete(key);
     cache = { key, config, expiresAt: Date.now() + DISCOVERY_CACHE_MS };
     return config;
   }
@@ -109,6 +122,7 @@ export function createOpenIdClient(fetchImpl?: client.CustomFetch): OidcClientPo
     },
     reset() {
       cache = undefined;
+      failures.clear();
     },
   };
 }

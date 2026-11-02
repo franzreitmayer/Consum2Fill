@@ -7,6 +7,7 @@ export const API_PATHS = {
   login: "/api/auth/login",
   logout: "/api/auth/logout",
   me: "/api/auth/me",
+  ownPassword: "/api/auth/password",
   oidcLogin: "/api/auth/oidc/login",
   oidcCallback: "/api/auth/oidc/callback",
   adminUsers: "/api/admin/users",
@@ -50,6 +51,12 @@ export interface User {
   email: string | null;
   role: Role;
   source: "local" | "oidc";
+  mustChangePassword: boolean;
+}
+
+export interface ChangeOwnPasswordRequest {
+  currentPassword: string;
+  newPassword: string;
 }
 
 export interface AuthProvidersResponse {

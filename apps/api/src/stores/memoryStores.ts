@@ -54,6 +54,7 @@ function createMemoryUserStore(): UserStore {
         passwordHash: null,
         oidcIssuer: null,
         oidcSubject: null,
+        mustChangePassword: false,
         ...input,
         id: randomBytes(12).toString("hex"),
       };

@@ -12,6 +12,7 @@ const ADMIN: User = {
   email: "ada@example.org",
   role: "ADMIN",
   source: "local",
+  mustChangePassword: false,
 };
 const LOCAL_USER: User = {
   id: "local-id",
@@ -20,6 +21,7 @@ const LOCAL_USER: User = {
   email: null,
   role: "USER",
   source: "local",
+  mustChangePassword: false,
 };
 const IAM_USER: User = {
   id: "iam-id",
@@ -28,6 +30,7 @@ const IAM_USER: User = {
   email: "ida@example.org",
   role: "USER",
   source: "oidc",
+  mustChangePassword: false,
 };
 const USERS_ROUTE = `GET ${API_PATHS.adminUsers}`;
 

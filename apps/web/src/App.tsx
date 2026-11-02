@@ -5,6 +5,7 @@ import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, apiRequest, createApiClient } from "./api";
 import { AuthenticatedApp } from "./AuthenticatedApp";
+import { ChangePasswordScreen } from "./ChangePasswordScreen";
 import { ErrorWithRetry } from "./ErrorWithRetry";
 import { LoginScreen } from "./LoginScreen";
 
@@ -92,16 +93,28 @@ export function App() {
     [refreshProviders],
   );
 
+  function handleLoggedOut() {
+    setAuth({ kind: "anonymous", notice: null });
+    refreshProviders();
+  }
+
+  if (auth.kind === "authenticated" && auth.user.mustChangePassword) {
+    return (
+      <ChangePasswordScreen
+        api={api}
+        onPasswordChanged={(user) => setAuth({ kind: "authenticated", user })}
+        onLoggedOut={handleLoggedOut}
+      />
+    );
+  }
+
   if (auth.kind === "authenticated") {
     return (
       <AuthenticatedApp
         api={api}
         user={auth.user}
         onUserChange={(user) => setAuth({ kind: "authenticated", user })}
-        onLoggedOut={() => {
-          setAuth({ kind: "anonymous", notice: null });
-          refreshProviders();
-        }}
+        onLoggedOut={handleLoggedOut}
         onProvidersChange={refreshProviders}
       />
     );

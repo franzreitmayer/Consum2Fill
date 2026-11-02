@@ -12,7 +12,7 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_FAILURES = 10;
 
 export function createAuthRouter(context: RouteContext): Router {
-  const { stores, secureCookies, requireSession } = context;
+  const { stores, secureCookies, requireSessionAllowingPasswordChange } = context;
   const router = Router();
 
   // One instance per router, so that apps do not share their counters
@@ -50,7 +50,7 @@ export function createAuthRouter(context: RouteContext): Router {
     res.status(204).end();
   });
 
-  router.get(API_PATHS.me, requireSession, (_req, res) => {
+  router.get(API_PATHS.me, requireSessionAllowingPasswordChange, (_req, res) => {
     res.json(toPublicUser(currentUser(res)));
   });
 

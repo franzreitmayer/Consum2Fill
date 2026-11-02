@@ -11,6 +11,7 @@ export interface RouteContext {
   publicUrl: string | undefined;
   secureCookies: boolean;
   requireSession: RequestHandler;
+  requireSessionAllowingPasswordChange: RequestHandler;
   // One lock for all domain writes: checking a reference and writing a movement must exclude
   // checking the usage and deleting the master record, across all four entities.
   domainLock: Mutex;

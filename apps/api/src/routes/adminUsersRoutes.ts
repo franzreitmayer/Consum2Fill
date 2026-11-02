@@ -91,7 +91,10 @@ export function createAdminUsersRouter({ stores }: RouteContext): Router {
     if (user.source !== "local") {
       throw new HttpError(409, "IAM-Benutzer haben kein lokales Passwort.");
     }
-    await users.update(user.id, { passwordHash: await hashPassword(password) });
+    await users.update(user.id, {
+      passwordHash: await hashPassword(password),
+      mustChangePassword: false,
+    });
     await sessions.deleteByUser(user.id);
     res.status(204).end();
   });

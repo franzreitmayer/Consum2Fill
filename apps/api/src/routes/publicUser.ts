@@ -10,5 +10,6 @@ export function toPublicUser(user: StoredUser): User {
     email: user.email,
     role: user.role,
     source: user.source,
+    mustChangePassword: user.mustChangePassword,
   };
 }

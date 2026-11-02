@@ -236,6 +236,7 @@ describe("OIDC login", () => {
       email: "erika@example.org",
       role: "USER",
       source: "oidc",
+      mustChangePassword: false,
     });
     expect(context.oidcClient.callbackUrls[0]).toContain("code=code");
   });
@@ -419,5 +420,75 @@ describe("OIDC login", () => {
     expect(res.text).not.toContain("secret detail");
     expect(console.error).toHaveBeenCalled();
     expect((await agent.get(API_PATHS.me)).status).toBe(401);
+  });
+
+  describe("limit", () => {
+    async function useUpLimit(app: Context["app"]) {
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const res = await request(app).get(API_PATHS.oidcLogin);
+        expect(res.headers.location).toBe(`${TEST_ISSUER}/auth`);
+      }
+    }
+
+    it("redirects to the failure page after 20 requests without asking the provider", async () => {
+      await enableOidc(context);
+      await useUpLimit(context.app);
+
+      const res = await request(context.app).get(API_PATHS.oidcLogin);
+
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe(FAILURE);
+      expect(res.get("Set-Cookie")).toBeUndefined();
+      expect(context.oidcClient.connections).toHaveLength(20);
+    });
+
+    it("also counts failing requests", async () => {
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        await request(context.app).get(API_PATHS.oidcLogin);
+      }
+      vi.mocked(console.error).mockClear();
+      await enableOidc(context);
+
+      const res = await request(context.app).get(API_PATHS.oidcLogin);
+
+      expect(res.headers.location).toBe(FAILURE);
+      expect(context.oidcClient.connections).toEqual([]);
+      expect(console.error).not.toHaveBeenCalled();
+    });
+
+    it("leaves the callback of a running login alone", async () => {
+      await enableOidc(context);
+      const agent = request.agent(context.app);
+      await agent.get(API_PATHS.oidcLogin);
+      for (let attempt = 0; attempt < 19; attempt += 1) {
+        await request(context.app).get(API_PATHS.oidcLogin);
+      }
+      await request(context.app).get(API_PATHS.oidcLogin);
+
+      const res = await agent.get(API_PATHS.oidcCallback).query({ code: "c", state: FAKE_STATE });
+
+      expect(res.headers.location).toBe("/");
+    });
+
+    it("counts per client behind the TLS proxy of an https PUBLIC_URL", async () => {
+      const proxied = await createSeededContext({ publicUrl: "https://refill.example.org" });
+      await proxied.stores.oidcSettings.save({
+        enabled: true,
+        displayName: settings.displayName,
+        issuerUrl: settings.issuerUrl,
+        clientId: settings.clientId,
+        clientSecretEncrypted: createSecretBox(AUTH_SECRET).encrypt(
+          settings.clientSecret,
+          "oidc-client-secret",
+        ),
+      });
+      const loginFrom = (ip: string) =>
+        request(proxied.app).get(API_PATHS.oidcLogin).set("X-Forwarded-For", ip);
+
+      for (let attempt = 0; attempt < 20; attempt += 1) await loginFrom("203.0.113.1");
+
+      expect((await loginFrom("203.0.113.1")).headers.location).toBe(FAILURE);
+      expect((await loginFrom("203.0.113.2")).headers.location).toBe(`${TEST_ISSUER}/auth`);
+    });
   });
 });
