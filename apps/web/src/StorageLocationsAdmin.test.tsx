@@ -1,4 +1,4 @@
-import { API_PATHS, type StorageLocation } from "@c2r/shared";
+import { API_PATHS, type StorageLocation, type User } from "@c2r/shared";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApiClient } from "./api";
@@ -21,8 +21,13 @@ const LIST_ROUTE = `GET ${API_PATHS.storageLocations}`;
 const CREATE_ROUTE = `POST ${API_PATHS.storageLocations}`;
 const MAIN_PATH = `${API_PATHS.storageLocations}/${MAIN.id}`;
 
-function renderAdmin() {
-  render(<StorageLocationsAdmin api={createApiClient(vi.fn())} />);
+function renderAdmin(onCurrentUserChange = vi.fn(), onUnauthorized = vi.fn()) {
+  return render(
+    <StorageLocationsAdmin
+      api={createApiClient(onUnauthorized)}
+      onCurrentUserChange={onCurrentUserChange}
+    />,
+  );
 }
 
 function stubList(routes: Record<string, RouteHandler> = {}) {
@@ -341,7 +346,7 @@ describe("StorageLocationsAdmin delete", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(screen.getByText("Hauptlager")).toBeTruthy();
-    expect(api.bodies(LIST_ROUTE)).toHaveLength(1);
+    expect(api.bodies(LIST_ROUTE)).toHaveLength(2);
   });
 
   it("shows the message and reloads when the location no longer exists", async () => {
@@ -379,5 +384,356 @@ describe("StorageLocationsAdmin delete", () => {
 
     expect(await screen.findByText("Lagerort gelöscht.")).toBeTruthy();
     expect(write.writeCount()).toBe(1);
+  });
+});
+
+const NETWORK_MESSAGE = "Server nicht erreichbar. Bitte die Verbindung prüfen.";
+const networkFailure: RouteHandler = () => {
+  throw new TypeError("Failed to fetch");
+};
+const KELLER = location(8, "Keller");
+const MAIN_PATCH = `PATCH ${MAIN_PATH}`;
+const MAIN_DELETE = `DELETE ${MAIN_PATH}`;
+
+interface WriteCase {
+  label: string;
+  route: string;
+  success: RouteHandler;
+  open: () => Promise<HTMLElement>;
+  submitLabel: string;
+  successMessage: string;
+}
+
+const WRITE_CASES: WriteCase[] = [
+  {
+    label: "POST",
+    route: CREATE_ROUTE,
+    success: json(KELLER, 201),
+    open: async () => {
+      const dialog = await openCreateDialog();
+      enterName(dialog, "Keller");
+      return dialog;
+    },
+    submitLabel: "Speichern",
+    successMessage: "Lagerort angelegt.",
+  },
+  {
+    label: "PATCH",
+    route: MAIN_PATCH,
+    success: json({ ...MAIN, name: "Keller" }),
+    open: async () => {
+      const dialog = await openEditDialog();
+      enterName(dialog, "Keller");
+      return dialog;
+    },
+    submitLabel: "Speichern",
+    successMessage: "Lagerort gespeichert.",
+  },
+  {
+    label: "DELETE",
+    route: MAIN_DELETE,
+    success: noContent,
+    open: openDeleteDialog,
+    submitLabel: "Löschen",
+    successMessage: "Lagerort gelöscht.",
+  },
+];
+const LABELLED_WRITE_CASES = WRITE_CASES.map((writeCase) => [writeCase.label, writeCase] as const);
+
+function caseFor(label: string): WriteCase {
+  const found = WRITE_CASES.find((writeCase) => writeCase.label === label);
+  if (!found) throw new Error(label);
+  return found;
+}
+
+describe("StorageLocationsAdmin failures while writing", () => {
+  it.each(LABELLED_WRITE_CASES)(
+    "keeps the dialog open after a network failure on %s and can send again",
+    async (_label, writeCase) => {
+      const api = stubList({ [writeCase.route]: networkFailure });
+
+      renderAdmin();
+      const dialog = await writeCase.open();
+      clickButton(dialog, writeCase.submitLabel);
+
+      expect(await within(dialog).findByText(NETWORK_MESSAGE)).toBeTruthy();
+      expect(screen.getByRole("dialog")).toBeTruthy();
+      expect(within(dialog).getByRole("button", { name: writeCase.submitLabel })).toHaveProperty(
+        "disabled",
+        false,
+      );
+
+      api.routes[writeCase.route] = writeCase.success;
+      clickButton(dialog, writeCase.submitLabel);
+
+      expect(await screen.findByText(writeCase.successMessage)).toBeTruthy();
+      expect(api.bodies(writeCase.route)).toHaveLength(2);
+    },
+  );
+
+  it.each([
+    ["POST", 403],
+    ["POST", 404],
+    ["DELETE", 403],
+  ])("closes the dialog, shows the message and reloads after %s with %i", async (label, status) => {
+    const writeCase = caseFor(label);
+    const api = stubList({ [writeCase.route]: json({ message: "Abgelehnt" }, status) });
+
+    renderAdmin();
+    const dialog = await writeCase.open();
+    api.routes[LIST_ROUTE] = json([WORKSHOP]);
+    clickButton(dialog, writeCase.submitLabel);
+
+    expect(await screen.findByText("Abgelehnt")).toBeTruthy();
+    expect(await screen.findByText("Werkstatt")).toBeTruthy();
+    expect(screen.queryByText("Hauptlager")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(api.bodies(LIST_ROUTE)).toHaveLength(2);
+  });
+
+  it("keeps the dialog open with the message after a 400 on PATCH", async () => {
+    const writeCase = caseFor("PATCH");
+    stubList({ [writeCase.route]: json({ message: "Der Name ist ungültig." }, 400) });
+
+    renderAdmin();
+    const dialog = await writeCase.open();
+    clickButton(dialog, writeCase.submitLabel);
+
+    expect(await within(dialog).findByText("Der Name ist ungültig.")).toBeTruthy();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it.each(LABELLED_WRITE_CASES)(
+    "reports a 401 on %s to the client without reloading the user",
+    async (_label, writeCase) => {
+      const api = stubList({ [writeCase.route]: json({ message: "Nicht angemeldet" }, 401) });
+      const onUnauthorized = vi.fn();
+
+      renderAdmin(vi.fn(), onUnauthorized);
+      const dialog = await writeCase.open();
+      clickButton(dialog, writeCase.submitLabel);
+
+      await waitFor(() => expect(onUnauthorized).toHaveBeenCalledTimes(1));
+      expect(api.bodies(`GET ${API_PATHS.me}`)).toHaveLength(0);
+    },
+  );
+
+  it.each(LABELLED_WRITE_CASES)(
+    "sends once when the %s form is submitted repeatedly by Enter",
+    async (_label, writeCase) => {
+      const write = stubPendingWrite();
+
+      renderAdmin();
+      const dialog = await writeCase.open();
+      const form = dialog.querySelector("form") as HTMLFormElement;
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+
+      await waitFor(() => expect(write.writeCount()).toBe(1));
+      fireEvent.submit(form);
+      await new Promise((resolve) => setTimeout(resolve));
+      expect(write.writeCount()).toBe(1);
+    },
+  );
+});
+
+describe("StorageLocationsAdmin current user after a write", () => {
+  const ME_ROUTE = `GET ${API_PATHS.me}`;
+  const DEMOTED_USER: User = {
+    id: "u1",
+    username: "erika",
+    displayName: "Erika Muster",
+    email: null,
+    role: "USER",
+    source: "local",
+    mustChangePassword: false,
+  };
+
+  it("hands the reloaded user over after a 403", async () => {
+    const writeCase = caseFor("PATCH");
+    stubList({
+      [writeCase.route]: json({ message: "Keine Berechtigung." }, 403),
+      [ME_ROUTE]: json(DEMOTED_USER),
+    });
+    const onCurrentUserChange = vi.fn();
+
+    renderAdmin(onCurrentUserChange);
+    const dialog = await writeCase.open();
+    clickButton(dialog, writeCase.submitLabel);
+
+    await waitFor(() => expect(onCurrentUserChange).toHaveBeenCalledWith(DEMOTED_USER));
+  });
+
+  it("does not reload the user after a 404", async () => {
+    const writeCase = caseFor("PATCH");
+    const api = stubList({
+      [writeCase.route]: json({ message: "Nicht gefunden" }, 404),
+      [ME_ROUTE]: json(DEMOTED_USER),
+    });
+
+    renderAdmin();
+    const dialog = await writeCase.open();
+    clickButton(dialog, writeCase.submitLabel);
+
+    expect(await screen.findByText("Nicht gefunden")).toBeTruthy();
+    expect(api.bodies(ME_ROUTE)).toHaveLength(0);
+  });
+
+  it("ignores the answer after the view was left", async () => {
+    let answerMe: (response: Response) => void = () => undefined;
+    const pendingMe = new Promise<Response>((resolve) => {
+      answerMe = resolve;
+    });
+    let meSignal: AbortSignal | null | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path: string, init?: RequestInit) => {
+        if (path === API_PATHS.me) {
+          meSignal = init?.signal;
+          return pendingMe;
+        }
+        return init?.method === "PATCH"
+          ? Response.json({ message: "Keine Berechtigung." }, { status: 403 })
+          : Response.json([MAIN]);
+      }),
+    );
+    const onCurrentUserChange = vi.fn();
+
+    const { unmount } = renderAdmin(onCurrentUserChange);
+    const dialog = await openEditDialog();
+    enterName(dialog, "Keller");
+    clickButton(dialog, "Speichern");
+    await waitFor(() => expect(meSignal).toBeTruthy());
+
+    unmount();
+    expect(meSignal?.aborted).toBe(true);
+    answerMe(Response.json(DEMOTED_USER));
+    await new Promise((resolve) => setTimeout(resolve));
+
+    expect(onCurrentUserChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("StorageLocationsAdmin background refresh after a 409", () => {
+  const message = "Konflikt";
+
+  it.each(LABELLED_WRITE_CASES)(
+    "updates the list behind the open dialog on %s",
+    async (_label, writeCase) => {
+      const api = stubList({ [writeCase.route]: json({ message }, 409) });
+
+      renderAdmin();
+      const dialog = await writeCase.open();
+      api.routes[LIST_ROUTE] = json([MAIN, WORKSHOP, location(9, "Neu von anderswo")]);
+      clickButton(dialog, writeCase.submitLabel);
+
+      expect(await within(dialog).findByText(message)).toBeTruthy();
+      expect(await screen.findByText("Neu von anderswo")).toBeTruthy();
+      expect(screen.queryByRole("progressbar")).toBeNull();
+      expect(screen.getByRole("dialog")).toBe(dialog);
+      expect(within(dialog).getByText(message)).toBeTruthy();
+      expect(api.bodies(LIST_ROUTE)).toHaveLength(2);
+    },
+  );
+
+  it("keeps the input in the dialog while the list is replaced", async () => {
+    const api = stubList({ [CREATE_ROUTE]: json({ message }, 409) });
+
+    renderAdmin();
+    const dialog = await openCreateDialog();
+    enterName(dialog, "Keller");
+    api.routes[LIST_ROUTE] = json([MAIN, KELLER]);
+    clickButton(dialog, "Speichern");
+
+    expect(await screen.findByText("Nr. 8")).toBeTruthy();
+    expect(within(dialog).getByRole("textbox", { name: "Name" })).toHaveProperty("value", "Keller");
+  });
+
+  it("keeps list, dialog and message when the refresh fails", async () => {
+    const api = stubList({ [CREATE_ROUTE]: json({ message }, 409) });
+
+    renderAdmin();
+    const dialog = await openCreateDialog();
+    enterName(dialog, "Keller");
+    api.routes[LIST_ROUTE] = json({ message: "Liste kaputt" }, 500);
+    clickButton(dialog, "Speichern");
+
+    await waitFor(() => expect(api.bodies(LIST_ROUTE)).toHaveLength(2));
+    await within(dialog).findByText(message);
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(within(dialog).getByText(message)).toBeTruthy();
+    expect(screen.getByText("Hauptlager")).toBeTruthy();
+    expect(screen.queryByText("Liste kaputt")).toBeNull();
+  });
+
+  function deferred() {
+    let resolve: (response: Response) => void = () => undefined;
+    const promise = new Promise<Response>((done) => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  }
+
+  /** Answers the calls of each method in order. */
+  function stubSequence(answers: {
+    GET: (Response | Promise<Response>)[];
+    POST: (Response | Promise<Response>)[];
+  }) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_path: string, init?: RequestInit) => {
+        const answer = (init?.method === "POST" ? answers.POST : answers.GET).shift();
+        if (!answer) throw new Error("Unerwartete Anfrage");
+        return answer;
+      }),
+    );
+  }
+
+  it("ignores a refresh that was overtaken by a successful save", async () => {
+    const list = deferred();
+    stubSequence({
+      GET: [Response.json([MAIN]), list.promise],
+      POST: [Response.json({ message }, { status: 409 }), Response.json(KELLER, { status: 201 })],
+    });
+
+    renderAdmin();
+    const dialog = await openCreateDialog();
+    enterName(dialog, "Hauptlager");
+    clickButton(dialog, "Speichern");
+    await within(dialog).findByText(message);
+    enterName(dialog, "Keller");
+    clickButton(dialog, "Speichern");
+    expect(await screen.findByText("Lagerort angelegt.")).toBeTruthy();
+
+    list.resolve(Response.json([MAIN]));
+    await new Promise((resolve) => setTimeout(resolve));
+
+    expect(screen.getByText("Keller")).toBeTruthy();
+  });
+
+  it("does not lose or duplicate entries when a refresh arrives during a save", async () => {
+    const list = deferred();
+    const save = deferred();
+    stubSequence({
+      GET: [Response.json([MAIN]), list.promise],
+      POST: [Response.json({ message }, { status: 409 }), save.promise],
+    });
+
+    renderAdmin();
+    const dialog = await openCreateDialog();
+    enterName(dialog, "Hauptlager");
+    clickButton(dialog, "Speichern");
+    await within(dialog).findByText(message);
+    enterName(dialog, "Keller");
+    clickButton(dialog, "Speichern");
+
+    list.resolve(Response.json([MAIN, KELLER, location(9, "Anderswo")]));
+    expect(await screen.findByText("Anderswo")).toBeTruthy();
+
+    save.resolve(Response.json(KELLER, { status: 201 }));
+
+    expect(await screen.findByText("Lagerort angelegt.")).toBeTruthy();
+    expect(screen.getAllByText("Keller")).toHaveLength(1);
+    expect(screen.getByText("Anderswo")).toBeTruthy();
   });
 });

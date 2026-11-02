@@ -46,7 +46,9 @@ export function AuthenticatedApp({
   const [logoutError, setLogoutError] = useState<string | null>(null);
 
   const navItems = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
-  // The role is checked here as well: it can change while a restricted view is open.
+  // The view is checked against the role as well. The role here only changes with the user prop:
+  // when an admin edits the own account, or when a 403 in the master data reloads the user.
+  // A role taken away elsewhere stays unnoticed until then.
   const activeView: View = navItems.some((item) => item.view === view) ? view : "home";
 
   async function handleLogout() {
@@ -95,7 +97,9 @@ export function AuthenticatedApp({
           </Alert>
         )}
         {activeView === "home" && <HomeView api={api} user={user} />}
-        {activeView === "masterData" && <MasterDataArea api={api} />}
+        {activeView === "masterData" && (
+          <MasterDataArea api={api} onCurrentUserChange={onUserChange} />
+        )}
         {activeView === "admin" && (
           <AdminArea
             api={api}

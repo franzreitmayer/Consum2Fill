@@ -1,5 +1,6 @@
 import { API_PATHS, type Role, type StorageLocation, type User } from "@c2r/shared";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApiClient } from "./api";
 import { AuthenticatedApp } from "./AuthenticatedApp";
@@ -117,8 +118,8 @@ describe("AuthenticatedApp navigation", () => {
   });
 });
 
-describe("AuthenticatedApp role changes", () => {
-  it("returns to the start view when the master data role is taken away", async () => {
+describe("AuthenticatedApp view filter for a changed user prop", () => {
+  it("leaves the master data view when the role no longer allows it", async () => {
     stubRoutes("MANAGER");
 
     const { rerender } = render(appWithRole("MANAGER"));
@@ -132,7 +133,7 @@ describe("AuthenticatedApp role changes", () => {
     expect(screen.queryByRole("navigation")).toBeNull();
   });
 
-  it("returns to the start view when an ADMIN in the administration becomes MANAGER", async () => {
+  it("leaves the administration view when the role no longer allows it", async () => {
     stubRoutes("ADMIN");
 
     const { rerender } = render(appWithRole("ADMIN"));
@@ -146,7 +147,7 @@ describe("AuthenticatedApp role changes", () => {
     expect(navLabels()).toEqual(["Start", "Stammdaten"]);
   });
 
-  it("keeps the master data open when an ADMIN becomes MANAGER", async () => {
+  it("keeps the master data view when the new role still allows it", async () => {
     stubRoutes("ADMIN");
 
     const { rerender } = render(appWithRole("ADMIN"));
@@ -156,5 +157,74 @@ describe("AuthenticatedApp role changes", () => {
     rerender(appWithRole("MANAGER"));
 
     expect(screen.getByText("Hauptlager")).toBeTruthy();
+  });
+});
+
+describe("AuthenticatedApp role taken away elsewhere", () => {
+  const SAVE_ROUTE = `PATCH ${API_PATHS.storageLocations}/${LOCATION.id}`;
+  const FORBIDDEN = "Keine Berechtigung.";
+
+  function StatefulApp() {
+    const [user, setUser] = useState(userWithRole("MANAGER"));
+    return (
+      <AuthenticatedApp
+        api={api}
+        user={user}
+        onUserChange={setUser}
+        onLoggedOut={vi.fn()}
+        onProvidersChange={vi.fn()}
+      />
+    );
+  }
+
+  async function saveInMasterData() {
+    render(<StatefulApp />);
+    fireEvent.click(screen.getByRole("button", { name: "Stammdaten" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten: Hauptlager" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "Zentrallager" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+  }
+
+  it("falls back to the start view without navigation after a 403 and the reloaded user", async () => {
+    const stub = stubRoutes("MANAGER");
+    stub.routes[SAVE_ROUTE] = json({ message: FORBIDDEN }, 403);
+    stub.routes[`GET ${API_PATHS.me}`] = json(userWithRole("USER"));
+
+    await saveInMasterData();
+
+    expect(await screen.findByText("Hello test")).toBeTruthy();
+    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Stammdaten" })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByText("USER")).toBeTruthy();
+  });
+
+  it("stays in the master data with the message when the role is unchanged", async () => {
+    const stub = stubRoutes("MANAGER");
+    stub.routes[SAVE_ROUTE] = json({ message: FORBIDDEN }, 403);
+    stub.routes[`GET ${API_PATHS.me}`] = json(userWithRole("MANAGER"));
+
+    await saveInMasterData();
+
+    expect(await screen.findByText(FORBIDDEN)).toBeTruthy();
+    await waitFor(() => expect(stub.bodies(`GET ${API_PATHS.me}`)).toHaveLength(1));
+    expect(await screen.findByText("Hauptlager")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Stammdaten" })).toBeTruthy();
+    expect(screen.getByText(FORBIDDEN)).toBeTruthy();
+  });
+
+  it("keeps the view and the message when reloading the user fails", async () => {
+    const stub = stubRoutes("MANAGER");
+    stub.routes[SAVE_ROUTE] = json({ message: FORBIDDEN }, 403);
+    stub.routes[`GET ${API_PATHS.me}`] = json({ message: "Kaputt" }, 500);
+
+    await saveInMasterData();
+
+    await waitFor(() => expect(stub.bodies(`GET ${API_PATHS.me}`)).toHaveLength(1));
+    expect(await screen.findByText("Hauptlager")).toBeTruthy();
+    expect(screen.getByText(FORBIDDEN)).toBeTruthy();
+    expect(screen.queryByText("Kaputt")).toBeNull();
   });
 });
