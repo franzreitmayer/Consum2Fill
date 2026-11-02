@@ -11,7 +11,12 @@ export interface RouteContext {
   publicUrl: string | undefined;
   secureCookies: boolean;
   requireSession: RequestHandler;
+  requireSessionAllowingPasswordChange: RequestHandler;
   // One lock for all domain writes: checking a reference and writing a movement must exclude
   // checking the usage and deleting the master record, across all four entities.
   domainLock: Mutex;
+  // Covers everything that depends on a stored password hash: replacing it, ending the sessions it
+  // opened and opening a new session with it. Slow hashing stays outside, so that it blocks nobody;
+  // whoever holds the lock therefore first checks that the hash is still the one they verified.
+  credentialLock: Mutex;
 }

@@ -50,7 +50,11 @@ export function currentUser(res: Response): StoredUser {
 }
 
 // Loads the user on every request, so that role changes and deletions apply at once.
-export function createRequireSession(users: UserStore, sessions: SessionStore): RequestHandler {
+function createSessionGuard(
+  users: UserStore,
+  sessions: SessionStore,
+  allowPendingPasswordChange: boolean,
+): RequestHandler {
   return async (req, res, next) => {
     const token = readCookie(req, SESSION_COOKIE);
     const session = token ? await sessions.findByTokenHash(hashSessionToken(token)) : null;
@@ -58,9 +62,25 @@ export function createRequireSession(users: UserStore, sessions: SessionStore): 
     const user =
       session && session.expiresAt > new Date() ? await users.findById(session.userId) : null;
     if (!user) throw new HttpError(401, "Nicht angemeldet.");
+    if (user.mustChangePassword && !allowPendingPasswordChange) {
+      throw new HttpError(403, "Das Passwort muss zuerst geändert werden.");
+    }
     res.locals.user = user;
     next();
   };
+}
+
+// The default for every protected route: also blocks users who must change their password first.
+export function createRequireSession(users: UserStore, sessions: SessionStore): RequestHandler {
+  return createSessionGuard(users, sessions, false);
+}
+
+// Only for what a user needs to get through the password change: /api/auth/me and /api/auth/password
+export function createRequireSessionAllowingPasswordChange(
+  users: UserStore,
+  sessions: SessionStore,
+): RequestHandler {
+  return createSessionGuard(users, sessions, true);
 }
 
 export const requireAdmin: RequestHandler = (_req, res, next) => {

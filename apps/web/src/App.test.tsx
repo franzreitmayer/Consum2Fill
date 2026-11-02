@@ -14,6 +14,7 @@ function userWithRole(role: Role): User {
     email: null,
     role,
     source: "local",
+    mustChangePassword: false,
   };
 }
 
@@ -149,6 +150,15 @@ describe("App session", () => {
 
     expect(await screen.findByRole("button", { name: "Anmelden" })).toBeTruthy();
     expect(screen.getByText("Die Sitzung ist abgelaufen. Bitte erneut anmelden.")).toBeTruthy();
+  });
+
+  it("shows the message when a password change becomes due during the session", async () => {
+    const message = "Das Passwort muss zuerst geändert werden.";
+    stubApi({ ...signedInRoutes("USER"), [`GET ${API_PATHS.hello}`]: json({ message }, 403) });
+
+    render(<App />);
+
+    expect(await screen.findByText(message)).toBeTruthy();
   });
 
   it("shows the hello error with a retry", async () => {

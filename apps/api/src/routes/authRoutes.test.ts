@@ -31,6 +31,7 @@ describe("login, me and logout", () => {
       email: null,
       role: "ADMIN",
       source: "local",
+      mustChangePassword: false,
     });
 
     const me = await agent.get(API_PATHS.me);

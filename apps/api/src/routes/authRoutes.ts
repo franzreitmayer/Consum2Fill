@@ -10,9 +10,10 @@ import { parseLogin } from "./validation.js";
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_FAILURES = 10;
+const INVALID_LOGIN_MESSAGE = "Benutzername oder Passwort ist falsch.";
 
 export function createAuthRouter(context: RouteContext): Router {
-  const { stores, secureCookies, requireSession } = context;
+  const { stores, secureCookies, requireSessionAllowingPasswordChange, credentialLock } = context;
   const router = Router();
 
   // One instance per router, so that apps do not share their counters
@@ -39,10 +40,17 @@ export function createAuthRouter(context: RouteContext): Router {
     // IAM users have no password: they run through the same check and fail the same way
     const storedHash = user?.source === "local" ? user.passwordHash : null;
     const valid = await verifyPassword(password, storedHash);
-    if (!user || !valid) throw new HttpError(401, "Benutzername oder Passwort ist falsch.");
+    if (!user || !valid) throw new HttpError(401, INVALID_LOGIN_MESSAGE);
 
-    await startSession(stores.sessions, res, user.id, secureCookies);
-    res.json(toPublicUser(user));
+    const current = await credentialLock(async () => {
+      // A password change during the verification has already ended all sessions of the old
+      // password, so a session opened with it now would outlive the change.
+      const fresh = await stores.users.findById(user.id);
+      if (fresh?.passwordHash !== storedHash) throw new HttpError(401, INVALID_LOGIN_MESSAGE);
+      await startSession(stores.sessions, res, fresh.id, secureCookies);
+      return fresh;
+    });
+    res.json(toPublicUser(current));
   });
 
   router.post(API_PATHS.logout, async (req, res) => {
@@ -50,7 +58,7 @@ export function createAuthRouter(context: RouteContext): Router {
     res.status(204).end();
   });
 
-  router.get(API_PATHS.me, requireSession, (_req, res) => {
+  router.get(API_PATHS.me, requireSessionAllowingPasswordChange, (_req, res) => {
     res.json(toPublicUser(currentUser(res)));
   });
 

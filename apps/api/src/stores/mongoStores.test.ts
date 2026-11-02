@@ -3,6 +3,7 @@ import { ConsumptionModel } from "../models/consumption.js";
 import { CounterModel } from "../models/counter.js";
 import { MaterialModel } from "../models/material.js";
 import { OrderModel } from "../models/order.js";
+import { UserModel } from "../models/user.js";
 import { isMongoDuplicateKeyError, mongoStores, nextRecordNumber } from "./mongoStores.js";
 import { DuplicateKeyError } from "./types.js";
 
@@ -22,6 +23,44 @@ function mockCounter(...results: (number | object)[]) {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe("users in the Mongo store", () => {
+  it("reads a document from before mustChangePassword as false", async () => {
+    vi.spyOn(UserModel, "findOne").mockReturnValue({
+      exec: () =>
+        Promise.resolve({
+          _id: "1",
+          username: "alt",
+          displayName: "Alt",
+          role: "USER",
+          source: "local",
+          passwordHash: "hash",
+        }),
+    } as never);
+
+    const user = await mongoStores.users.findByUsername("alt");
+
+    expect(user?.mustChangePassword).toBe(false);
+  });
+
+  it("stores the flag on create", async () => {
+    vi.spyOn(UserModel.prototype, "save").mockImplementation(function (this: unknown) {
+      return Promise.resolve(this) as never;
+    });
+
+    const user = await mongoStores.users.create({
+      username: "neu",
+      displayName: "Neu",
+      email: null,
+      role: "USER",
+      source: "local",
+      passwordHash: "hash",
+      mustChangePassword: true,
+    });
+
+    expect(user.mustChangePassword).toBe(true);
+  });
 });
 
 describe("isMongoDuplicateKeyError", () => {

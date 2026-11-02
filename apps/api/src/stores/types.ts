@@ -16,6 +16,7 @@ interface NewUserBase {
 export interface NewLocalUser extends NewUserBase {
   source: "local";
   passwordHash: string;
+  mustChangePassword?: boolean;
 }
 
 export interface NewOidcUser extends NewUserBase {
@@ -32,6 +33,7 @@ export interface UserPatch {
   email?: string | null;
   role?: Role;
   passwordHash?: string;
+  mustChangePassword?: boolean;
 }
 
 // Thrown by stores for a username, OIDC identity or record name that already exists

@@ -8,6 +8,7 @@ export interface UserFields {
   role: Role;
   source: "local" | "oidc";
   passwordHash?: string;
+  mustChangePassword?: boolean;
   oidcIssuer?: string;
   oidcSubject?: string;
 }
@@ -31,6 +32,7 @@ const userSchema = new Schema<UserFields>(
     role: { type: String, required: true, enum: ROLES },
     source: { type: String, required: true, enum: ["local", "oidc"] },
     passwordHash: { type: String, required: isLocal, validate: onlyLocal },
+    mustChangePassword: { type: Boolean, default: false },
     oidcIssuer: { type: String, required: isOidc, validate: onlyOidc },
     oidcSubject: { type: String, required: isOidc, validate: onlyOidc },
   },

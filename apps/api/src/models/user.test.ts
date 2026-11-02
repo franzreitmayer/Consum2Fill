@@ -58,6 +58,10 @@ describe("UserModel", () => {
     expect(new UserModel(local).email).toBeNull();
   });
 
+  it("does not demand a password change by default", () => {
+    expect(new UserModel(local).mustChangePassword).toBe(false);
+  });
+
   it("declares unique indexes for the username and the OIDC identity", () => {
     const indexes = UserModel.schema.indexes();
 

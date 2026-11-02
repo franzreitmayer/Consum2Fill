@@ -68,13 +68,23 @@ export function createTestContext(options: Partial<AppOptions> = {}) {
   return { app, stores, oidcClient };
 }
 
-export async function createSeededContext(options: Partial<AppOptions> = {}) {
+// The real state after a first start: the default users must change their passwords.
+export async function createFreshlySeededContext(options: Partial<AppOptions> = {}) {
   const context = createTestContext(options);
   // Keeps the expected default password warning out of the test output
   const { warn } = console;
   console.warn = () => undefined;
   await seedDefaultUsers(context.stores.users);
   console.warn = warn;
+  return context;
+}
+
+// For tests of everything else: lifts the password change barrier of the default users.
+export async function createSeededContext(options: Partial<AppOptions> = {}) {
+  const context = await createFreshlySeededContext(options);
+  for (const { id } of await context.stores.users.list()) {
+    await context.stores.users.update(id, { mustChangePassword: false });
+  }
   return context;
 }
 

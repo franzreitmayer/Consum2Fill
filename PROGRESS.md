@@ -29,3 +29,10 @@ Jeder Task pflegt nur seinen eigenen Abschnitt (`## T-<id>`), siehe `/handoff`. 
 - **Aktueller Stand:** Branch `T-001`, Worktree `.worktrees/T-001`, nicht gemergt. `make docker-check` grün (API 431 Tests, Web 58 Tests); `make check` auf dem Host nicht ausführbar, weil dort pnpm fehlt. Der Dev-Stack des Worktrees ist gestoppt, seine eigene `.env` und seine Volumes bestehen weiter.
 - **Offene Probleme:** Keine Oberfläche für die neuen Daten. Die Rollen, das Löschverbot und die eindeutigen Namen sind Festlegungen aus ADR 0005, nicht aus der Anforderung. Die Mongo-Stores sind automatisch nur mit Mocks getestet, weil `pnpm check` keine Datenbank nutzen darf. Unter `/api/admin` kommt bei kaputtem JSON weiter 400 statt 401 (T-009). `parseEmail` lehnt NUL und einzelne Surrogate nicht ab. Der Vertrag nennt 413 und 415 nicht. Die Sperre schützt nur bei einer App-Instanz.
 - **Nächster konkreter Schritt:** Auf `main` `git merge T-001` ausführen.
+
+## T-009
+
+- **Erledigt:** Erzwungene Passwortänderung für Startkonten samt Bildschirm, eigener Passwortwechsel, gemeinsame Sperre für Passwortänderungen und Anmeldung, Limit und Fehlerspeicher für den OIDC-Login, Sicherheitsheader mit `helmet`, Anmeldeprüfung vor dem JSON-Parser unter `/api/admin`, Zeichenprüfung in `parseEmail`, ADR 0006. Geprüft im Produktions-Image mit Chrome bei 360 px und live gegen Rennen beim Passwortwechsel. Reviewer hat nach zwei Korrekturrunden freigegeben.
+- **Aktueller Stand:** Branch `T-009`, Worktree `.worktrees/T-009`. `make docker-check` grün (API 557 Tests, Web 75 Tests); `make check` auf dem Host nicht ausführbar, weil dort pnpm fehlt. `main` enthält nur den Stand vor der Korrektur der Rennen (Merge `b05140c`).
+- **Offene Probleme:** OIDC mit echtem Provider nicht durchlaufen. Die Sperre hat kein Zeitlimit. Wird ein Benutzer während eines Updates gelöscht, gibt es vermutlich 500 statt 401 oder 404 (ungeprüft). Weitere Einschränkungen in ADR 0006. Neue Abhängigkeiten erreichen einen laufenden Dev-Container erst nach einem Neustart.
+- **Nächster konkreter Schritt:** Auf `main` `git merge T-009` ausführen, damit die Korrektur der Rennen ankommt.
