@@ -11,6 +11,10 @@ export const API_PATHS = {
   oidcCallback: "/api/auth/oidc/callback",
   adminUsers: "/api/admin/users",
   adminOidcSettings: "/api/admin/oidc-settings",
+  materials: "/api/materials",
+  storageLocations: "/api/storage-locations",
+  consumptions: "/api/consumptions",
+  orders: "/api/orders",
 } as const;
 
 export function adminUserPath(id: string): string {
@@ -92,3 +96,60 @@ export interface UpdateOidcSettingsRequest {
   clientId: string;
   clientSecret?: string;
 }
+
+export const DEFAULT_UNIT = "Stück";
+
+interface DomainRecord {
+  id: string;
+  number: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Material extends DomainRecord {
+  name: string;
+  unit: string;
+}
+
+export interface CreateMaterialRequest {
+  name: string;
+  unit?: string;
+}
+
+export interface UpdateMaterialRequest {
+  name?: string;
+  unit?: string;
+}
+
+export interface StorageLocation extends DomainRecord {
+  name: string;
+}
+
+export interface CreateStorageLocationRequest {
+  name: string;
+}
+
+export interface UpdateStorageLocationRequest {
+  name?: string;
+}
+
+export interface Movement extends DomainRecord {
+  storageLocationId: string;
+  materialId: string;
+  quantity: number;
+}
+
+export interface CreateMovementRequest {
+  storageLocationId: string;
+  materialId: string;
+  quantity: number;
+}
+
+export interface UpdateMovementRequest {
+  storageLocationId?: string;
+  materialId?: string;
+  quantity?: number;
+}
+
+export type Consumption = Movement;
+export type Order = Movement;

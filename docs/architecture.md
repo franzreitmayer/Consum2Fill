@@ -56,4 +56,4 @@ Jeder Task läuft in einem eigenen Worktree unter `.worktrees/T-<id>`. `pnpm che
 
 ## Fachlichkeit
 
-Das Domänenmodell ist noch offen, siehe `tasks/backlog.md`.
+Das Domänenmodell besteht aus Material, Lagerort, Verbrauch und Bestellung (siehe ADR 0005). Verbrauch und Bestellung verweisen per GUID auf Lagerort und Material. Die Datensätze haben CRUD-Endpoints unter `/api`, eine Oberfläche gibt es noch nicht. Bestand wird nicht geführt.

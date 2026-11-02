@@ -270,6 +270,376 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+  /api/materials:
+    get:
+      operationId: listMaterials
+      summary: Listet Material, aufsteigend nach Nummer
+      responses:
+        "200":
+          description: Material
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Material"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createMaterial
+      summary: Legt Material an. Schreibrecht haben ADMIN und MANAGER.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMaterialRequest"
+      responses:
+        "201":
+          description: Angelegt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Material"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/materials/{id}:
+    parameters:
+      - $ref: "#/components/parameters/RecordId"
+    get:
+      operationId: getMaterial
+      summary: Liefert Material
+      responses:
+        "200":
+          description: Material
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Material"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateMaterial
+      summary: Ändert Material. Schreibrecht haben ADMIN und MANAGER.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMaterialRequest"
+      responses:
+        "200":
+          description: Geändert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Material"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteMaterial
+      summary: >-
+        Löscht Material. Schreibrecht haben ADMIN und MANAGER. Nicht möglich, solange ein Verbrauch oder eine Bestellung es verwendet.
+      responses:
+        "204":
+          description: Gelöscht
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/storage-locations:
+    get:
+      operationId: listStorageLocations
+      summary: Listet Lagerorte, aufsteigend nach Nummer
+      responses:
+        "200":
+          description: Lagerorte
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StorageLocation"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createStorageLocation
+      summary: Legt Lagerort an. Schreibrecht haben ADMIN und MANAGER.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStorageLocationRequest"
+      responses:
+        "201":
+          description: Angelegt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageLocation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/storage-locations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/RecordId"
+    get:
+      operationId: getStorageLocation
+      summary: Liefert Lagerort
+      responses:
+        "200":
+          description: Lagerort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageLocation"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateStorageLocation
+      summary: Ändert Lagerort. Schreibrecht haben ADMIN und MANAGER.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStorageLocationRequest"
+      responses:
+        "200":
+          description: Geändert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageLocation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteStorageLocation
+      summary: >-
+        Löscht Lagerort. Schreibrecht haben ADMIN und MANAGER. Nicht möglich, solange ein Verbrauch oder eine Bestellung ihn verwendet.
+      responses:
+        "204":
+          description: Gelöscht
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /api/consumptions:
+    get:
+      operationId: listConsumptions
+      summary: Listet Verbräuche, aufsteigend nach Nummer
+      responses:
+        "200":
+          description: Verbräuche
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Movement"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createConsumption
+      summary: Legt Verbrauch an. Schreibrecht haben alle Angemeldeten.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMovementRequest"
+      responses:
+        "201":
+          description: Angelegt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movement"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/consumptions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/RecordId"
+    get:
+      operationId: getConsumption
+      summary: Liefert Verbrauch
+      responses:
+        "200":
+          description: Verbrauch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movement"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateConsumption
+      summary: Ändert Verbrauch. Schreibrecht haben alle Angemeldeten.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMovementRequest"
+      responses:
+        "200":
+          description: Geändert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movement"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteConsumption
+      summary: >-
+        Löscht Verbrauch. Schreibrecht haben alle Angemeldeten.
+      responses:
+        "204":
+          description: Gelöscht
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/orders:
+    get:
+      operationId: listOrders
+      summary: Listet Bestellungen, aufsteigend nach Nummer
+      responses:
+        "200":
+          description: Bestellungen
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Movement"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createOrder
+      summary: Legt Bestellung an. Schreibrecht haben ADMIN und MANAGER.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMovementRequest"
+      responses:
+        "201":
+          description: Angelegt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movement"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/orders/{id}:
+    parameters:
+      - $ref: "#/components/parameters/RecordId"
+    get:
+      operationId: getOrder
+      summary: Liefert Bestellung
+      responses:
+        "200":
+          description: Bestellung
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movement"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateOrder
+      summary: Ändert Bestellung. Schreibrecht haben ADMIN und MANAGER.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMovementRequest"
+      responses:
+        "200":
+          description: Geändert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movement"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteOrder
+      summary: >-
+        Löscht Bestellung. Schreibrecht haben ADMIN und MANAGER.
+      responses:
+        "204":
+          description: Gelöscht
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   securitySchemes:
     sessionCookie:
@@ -283,6 +653,13 @@ components:
       required: true
       schema:
         type: string
+    RecordId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     BadRequest:
       description: Ungültige Eingabe
@@ -309,7 +686,7 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     Conflict:
-      description: Benutzername vergeben oder Aktion in diesem Zustand nicht erlaubt
+      description: Name vergeben oder Aktion in diesem Zustand nicht erlaubt
       content:
         application/json:
           schema:
@@ -452,3 +829,143 @@ components:
             issuerUrl gleich bleibt. Bei geänderter issuerUrl antwortet die API mit 400, wenn
             enabled true ist; sonst verwirft sie das Secret.
           type: string
+    Material:
+      type: object
+      required: [id, number, name, unit, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: GUID, Schlüssel in URLs und Verweisen
+        number:
+          type: integer
+          minimum: 1
+          description: Fortlaufend je Entität vom Server vergeben, unveränderlich, wird nicht wiederverwendet
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+          minLength: 1
+          description: Innerhalb der Entität eindeutig
+        unit:
+          type: string
+          minLength: 1
+    CreateMaterialRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Innerhalb der Entität eindeutig
+        unit:
+          type: string
+          minLength: 1
+          default: Stück
+    UpdateMaterialRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Innerhalb der Entität eindeutig
+        unit:
+          type: string
+          minLength: 1
+    StorageLocation:
+      type: object
+      required: [id, number, name, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: GUID, Schlüssel in URLs und Verweisen
+        number:
+          type: integer
+          minimum: 1
+          description: Fortlaufend je Entität vom Server vergeben, unveränderlich, wird nicht wiederverwendet
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+          minLength: 1
+          description: Innerhalb der Entität eindeutig
+    CreateStorageLocationRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Innerhalb der Entität eindeutig
+    UpdateStorageLocationRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Innerhalb der Entität eindeutig
+    Movement:
+      type: object
+      description: Verbrauch oder Bestellung
+      required: [id, number, storageLocationId, materialId, quantity, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: GUID, Schlüssel in URLs und Verweisen
+        number:
+          type: integer
+          minimum: 1
+          description: Fortlaufend je Entität vom Server vergeben, unveränderlich, wird nicht wiederverwendet
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        storageLocationId:
+          type: string
+          format: uuid
+        materialId:
+          type: string
+          format: uuid
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+    CreateMovementRequest:
+      type: object
+      required: [storageLocationId, materialId, quantity]
+      properties:
+        storageLocationId:
+          type: string
+          format: uuid
+        materialId:
+          type: string
+          format: uuid
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+    UpdateMovementRequest:
+      type: object
+      minProperties: 1
+      properties:
+        storageLocationId:
+          type: string
+          format: uuid
+        materialId:
+          type: string
+          format: uuid
+        quantity:
+          type: number
+          exclusiveMinimum: 0
