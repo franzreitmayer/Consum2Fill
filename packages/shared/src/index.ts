@@ -105,6 +105,9 @@ export interface UpdateOidcSettingsRequest {
 }
 
 export const DEFAULT_UNIT = "Stück";
+export const MAX_DESCRIPTION_LENGTH = 2000;
+export const MAX_TAGS = 20;
+export const MAX_TAG_LENGTH = 50;
 
 interface DomainRecord {
   id: string;
@@ -116,16 +119,22 @@ interface DomainRecord {
 export interface Material extends DomainRecord {
   name: string;
   unit: string;
+  description: string;
+  tags: string[];
 }
 
 export interface CreateMaterialRequest {
   name: string;
   unit?: string;
+  description?: string;
+  tags?: string[];
 }
 
 export interface UpdateMaterialRequest {
   name?: string;
   unit?: string;
+  description?: string;
+  tags?: string[];
 }
 
 export interface StorageLocation extends DomainRecord {

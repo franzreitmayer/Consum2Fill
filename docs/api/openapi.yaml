@@ -368,7 +368,9 @@ paths:
           $ref: "#/components/responses/NotFound"
     patch:
       operationId: updateMaterial
-      summary: Ändert Material. Schreibrecht haben ADMIN und MANAGER.
+      summary: >-
+        Ändert Material. Schreibrecht haben ADMIN und MANAGER. Die Mengeneinheit ist nicht änderbar,
+        solange ein Verbrauch oder eine Bestellung darauf verweist (409).
       requestBody:
         required: true
         content:
@@ -903,7 +905,7 @@ components:
     Material:
       type: object
       description: Namen und Einheiten speichert die API ohne umgebende Leerzeichen.
-      required: [id, number, name, unit, createdAt, updatedAt]
+      required: [id, number, name, unit, description, tags, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -926,6 +928,21 @@ components:
         unit:
           type: string
           minLength: 1
+        description:
+          type: string
+          maxLength: 2000
+          default: ""
+        tags:
+          type: array
+          default: []
+          maxItems: 20
+          description: >-
+            Leerzeichen am Rand werden entfernt, Dubletten ohne Rücksicht auf Groß- und Kleinschreibung
+            fallen weg, die erste Schreibweise bleibt. Beim Ändern ersetzt die Angabe die ganze Liste.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
     CreateMaterialRequest:
       type: object
       required: [name]
@@ -938,6 +955,21 @@ components:
           type: string
           minLength: 1
           default: Stück
+        description:
+          type: string
+          maxLength: 2000
+          default: ""
+        tags:
+          type: array
+          default: []
+          maxItems: 20
+          description: >-
+            Leerzeichen am Rand werden entfernt, Dubletten ohne Rücksicht auf Groß- und Kleinschreibung
+            fallen weg, die erste Schreibweise bleibt. Beim Ändern ersetzt die Angabe die ganze Liste.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
     UpdateMaterialRequest:
       type: object
       minProperties: 1
@@ -949,6 +981,20 @@ components:
         unit:
           type: string
           minLength: 1
+          description: Nicht änderbar, solange ein Verbrauch oder eine Bestellung auf das Material verweist (409)
+        description:
+          type: string
+          maxLength: 2000
+        tags:
+          type: array
+          maxItems: 20
+          description: >-
+            Leerzeichen am Rand werden entfernt, Dubletten ohne Rücksicht auf Groß- und Kleinschreibung
+            fallen weg, die erste Schreibweise bleibt. Beim Ändern ersetzt die Angabe die ganze Liste.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
     StorageLocation:
       type: object
       required: [id, number, name, createdAt, updatedAt]
