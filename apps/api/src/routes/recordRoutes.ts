@@ -1,5 +1,5 @@
 import type { Role } from "@c2r/shared";
-import express, { Router } from "express";
+import express, { Router, type Response } from "express";
 import { requireRole } from "../auth/sessions.js";
 import { HttpError } from "../http/errors.js";
 import { DuplicateKeyError, type RecordStore, type StoredRecord } from "../stores/types.js";
@@ -13,15 +13,21 @@ export interface RecordRouterOptions<Fields extends object> {
   store: RecordStore<Fields>;
   writeRoles: readonly Role[];
   notFoundMessage: string;
-  // Parsers return checked primitives only; they run before the lock is taken.
-  parseCreate: (body: unknown) => Fields;
+  // Parsers return checked primitives only; they run before the lock is taken. parseCreate also
+  // gets the response, for fields the server sets from the session and never from the body.
+  parseCreate: (body: unknown, res: Response) => Fields;
   parseUpdate: (body: unknown) => Partial<Fields>;
   // Set for entities with a unique field
   duplicateMessage?: string;
-  // These run inside the lock, in one step with the write that depends on them.
+  // These run inside the lock, in one step with the write that depends on them. On a PATCH,
+  // beforeUpdate comes first: it sees the record, so that a missing right wins over a bad reference.
   beforeWrite?: (fields: Partial<Fields>) => Promise<void>;
-  beforeUpdate?: (existing: StoredRecord<Fields>, patch: Partial<Fields>) => Promise<void>;
-  beforeDelete?: (id: string) => Promise<void>;
+  beforeUpdate?: (
+    existing: StoredRecord<Fields>,
+    patch: Partial<Fields>,
+    res: Response,
+  ) => Promise<void>;
+  beforeDelete?: (id: string, existing: StoredRecord<Fields>, res: Response) => Promise<void>;
 }
 
 function toResponse<Fields extends object>(record: StoredRecord<Fields>) {
@@ -87,7 +93,7 @@ export function createRecordRouter<Fields extends object>(
   });
 
   router.post(path, async (req, res) => {
-    const fields = parseCreate(req.body);
+    const fields = parseCreate(req.body, res);
     const created = await domainLock(async () => {
       await beforeWrite?.(fields);
       return mapDuplicate(() => store.create(fields));
@@ -100,8 +106,8 @@ export function createRecordRouter<Fields extends object>(
     const patch = parseUpdate(req.body);
     const updated = await domainLock(async () => {
       const existing = await findRecord(id);
+      await beforeUpdate?.(existing, patch, res);
       await beforeWrite?.(patch);
-      await beforeUpdate?.(existing, patch);
       return mapDuplicate(() => store.update(id, patch));
     });
     if (!updated) throw new HttpError(404, notFoundMessage);
@@ -111,8 +117,8 @@ export function createRecordRouter<Fields extends object>(
   router.delete(recordPath, async (req, res) => {
     const id = parseId(req.params.id);
     await domainLock(async () => {
-      await findRecord(id);
-      await beforeDelete?.(id);
+      const existing = await findRecord(id);
+      await beforeDelete?.(id, existing, res);
       if (!(await store.delete(id))) throw new HttpError(404, notFoundMessage);
     });
     res.status(204).end();

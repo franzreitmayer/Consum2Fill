@@ -11,9 +11,12 @@ function isPositiveFinite(value: number): boolean {
   return Number.isFinite(value) && value > 0;
 }
 
-// Consumptions and orders have the same shape, but each model needs its own schema instance.
-export function createMovementSchema(): Schema<MovementDocument> {
-  return new Schema<MovementDocument>(
+// The fields consumptions and orders share. Each model needs its own schema instance, and what only
+// one of them has belongs in that model's file.
+export function createMovementSchema<
+  Doc extends MovementDocument = MovementDocument,
+>(): Schema<Doc> {
+  return new Schema<Doc>(
     {
       ...recordSchemaFields,
       // Indexed, because deleting a master record counts the movements that use it

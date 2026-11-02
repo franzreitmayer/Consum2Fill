@@ -221,6 +221,101 @@ describe("create in a Mongo record store", () => {
   });
 });
 
+describe("createdBy of consumptions in the Mongo store", () => {
+  const movement = { materialId: "m", storageLocationId: "s", quantity: 1 };
+  const legacy = { _id: "guid", number: 1, ...movement };
+  const createdBy = { id: "665f1c2ab0c4d8e9f0a1b2c3", displayName: "Erika Muster" };
+
+  function mockFindById(doc: unknown) {
+    vi.spyOn(ConsumptionModel, "findById").mockReturnValue({
+      exec: () => Promise.resolve(doc),
+    } as never);
+  }
+
+  function mockSave() {
+    return vi.spyOn(ConsumptionModel.prototype, "save").mockResolvedValue(undefined as never);
+  }
+
+  it.each([
+    ["a raw document", legacy],
+    ["a hydrated document", ConsumptionModel.hydrate(legacy)],
+  ])("reads null from %s from before the field", async (_label, doc) => {
+    mockFindById(doc);
+
+    expect((await mongoStores.consumptions.findById("guid"))?.createdBy).toBeNull();
+  });
+
+  it("reads null in the list", async () => {
+    vi.spyOn(ConsumptionModel, "find").mockReturnValue({
+      sort: () => ({ exec: () => Promise.resolve([ConsumptionModel.hydrate(legacy)]) }),
+    } as never);
+
+    const [record] = await mongoStores.consumptions.list();
+
+    expect(record?.createdBy).toBeNull();
+  });
+
+  it("keeps null after a patch of an old document", async () => {
+    mockFindById(ConsumptionModel.hydrate(legacy));
+    const save = mockSave();
+
+    const record = await mongoStores.consumptions.update("guid", { quantity: 2 });
+
+    expect(save).toHaveBeenCalledOnce();
+    expect(record).toMatchObject({ quantity: 2, createdBy: null });
+  });
+
+  it("returns a plain object, not a subdocument", async () => {
+    mockFindById(ConsumptionModel.hydrate({ ...legacy, createdBy }));
+
+    const record = await mongoStores.consumptions.findById("guid");
+
+    expect(record?.createdBy).toEqual(createdBy);
+    expect(Object.getPrototypeOf(record?.createdBy)).toBe(Object.prototype);
+    expect(Object.keys(record?.createdBy ?? {}).sort()).toEqual(["displayName", "id"]);
+  });
+
+  it("stores the creator on create and returns it as a plain object", async () => {
+    mockCounter(5);
+    mockSave();
+
+    const record = await mongoStores.consumptions.create({ ...movement, createdBy });
+
+    expect(record).toMatchObject({ ...movement, number: 5, createdBy });
+    expect(Object.getPrototypeOf(record.createdBy)).toBe(Object.prototype);
+  });
+
+  it("keeps the creator on a patch", async () => {
+    mockFindById(ConsumptionModel.hydrate({ ...legacy, createdBy }));
+    mockSave();
+
+    const record = await mongoStores.consumptions.update("guid", { quantity: 2 });
+
+    expect(record?.createdBy).toEqual(createdBy);
+  });
+
+  it("does not add the field to an order", async () => {
+    vi.spyOn(OrderModel, "findById").mockReturnValue({
+      exec: () => Promise.resolve(OrderModel.hydrate(legacy)),
+    } as never);
+
+    const record = await mongoStores.orders.findById("guid");
+
+    expect(record).not.toHaveProperty("createdBy");
+    expect(Object.keys(record ?? {}).sort()).toEqual(
+      [
+        "createdAt",
+        "id",
+        "materialId",
+        "number",
+        "quantity",
+        "storageLocationId",
+        "updatedAt",
+      ].sort(),
+    );
+  });
+});
+
 describe("materials from before description and tags", () => {
   const stored = { _id: "guid", number: 1, name: "Alt", unit: "Liter" };
 

@@ -26,4 +26,4 @@ Die Nummern können Lücken haben, etwa wenn ein Anlegen an einem doppelten Name
 
 Die Prüfung der Verweise und das Schreiben laufen über eine Sperre im Prozess. Das schützt wie in ADR 0004 nur bei einer einzelnen App-Instanz; MongoDB selbst kennt hier keine Fremdschlüssel.
 
-Bestand, Bestellstatus und die Verrechnung von Verbrauch und Bestellung gehören nicht zu diesem Modell. Die Listen haben keine Paginierung und werden mit wachsendem Datenbestand größer. Bei sehr vielen Materialien müsste auch die Suche auf den Server wandern. Eine Oberfläche gibt es für Lagerorte und Material (T-010, T-011), für Verbrauch und Bestellung noch nicht.
+Bestand, Bestellstatus und die Verrechnung von Verbrauch und Bestellung gehören nicht zu diesem Modell. Die Listen haben keine Paginierung und werden mit wachsendem Datenbestand größer. Bei sehr vielen Materialien müsste auch die Suche auf den Server wandern. Eine Oberfläche gibt es für Lagerorte, Material und Verbrauch (T-010, T-011, T-013), für Bestellung noch nicht.

@@ -1,5 +1,5 @@
 import mongoose, { type HydratedDocument, type Model } from "mongoose";
-import { ConsumptionModel } from "../models/consumption.js";
+import { ConsumptionModel, type ConsumptionDocument } from "../models/consumption.js";
 import { CounterModel } from "../models/counter.js";
 import { DataImportModel } from "../models/dataImport.js";
 import { MaterialModel, type MaterialDocument } from "../models/material.js";
@@ -11,6 +11,7 @@ import { SessionModel } from "../models/session.js";
 import { StorageLocationModel, type StorageLocationDocument } from "../models/storageLocation.js";
 import { UserModel, type UserFields } from "../models/user.js";
 import type {
+  ConsumptionFields,
   DataImportStore,
   MaterialFields,
   MovementFields,
@@ -233,13 +234,22 @@ function toMovementFields(doc: MovementFields): MovementFields {
   };
 }
 
-function createMongoMovementStore(model: Model<MovementDocument>, entity: string): MovementStore {
+// Documents from before createdBy have none. The copy leaves no Mongoose subdocument in the record.
+function toConsumptionFields(doc: ConsumptionFields): ConsumptionFields {
+  const { createdBy } = doc;
   return {
-    ...createMongoRecordStore<MovementDocument, MovementFields>(model, {
-      entity,
-      toFields: toMovementFields,
-    }),
-    countByReference: (reference, id) => model.countDocuments({ [reference]: id }).exec(),
+    ...toMovementFields(doc),
+    createdBy: createdBy ? { id: createdBy.id, displayName: createdBy.displayName } : null,
+  };
+}
+
+function createMongoMovementStore<
+  Doc extends RecordDocument & Fields,
+  Fields extends MovementFields,
+>(model: Model<Doc>, entity: string, toFields: (doc: Fields) => Fields): MovementStore<Fields> {
+  return {
+    ...createMongoRecordStore<Doc, Fields>(model, { entity, toFields }),
+    countByReference: (reference, id) => model.countDocuments({ [reference]: id } as never).exec(),
   };
 }
 
@@ -282,8 +292,16 @@ export const mongoStores: Stores = {
     StorageLocationModel,
     { entity: "storageLocations", uniqueField: "name", toFields: ({ name }) => ({ name }) },
   ),
-  consumptions: createMongoMovementStore(ConsumptionModel, "consumptions"),
-  orders: createMongoMovementStore(OrderModel, "orders"),
+  consumptions: createMongoMovementStore<ConsumptionDocument, ConsumptionFields>(
+    ConsumptionModel,
+    "consumptions",
+    toConsumptionFields,
+  ),
+  orders: createMongoMovementStore<MovementDocument, MovementFields>(
+    OrderModel,
+    "orders",
+    toMovementFields,
+  ),
 };
 
 // Waits for the unique and TTL indexes, so that they hold from the first write on.

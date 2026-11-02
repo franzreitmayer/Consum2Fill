@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type {
+  ConsumptionFields,
   DataImportStore,
   MaterialFields,
   MovementFields,
@@ -171,8 +172,10 @@ function createMemoryRecordStore<Fields extends object>(
   };
 }
 
-function createMemoryMovementStore(): MovementStore {
-  const store = createMemoryRecordStore<MovementFields>();
+function createMemoryMovementStore<Fields extends MovementFields>(
+  withDefaults?: (fields: Fields) => Fields,
+): MovementStore<Fields> {
+  const store = createMemoryRecordStore<Fields>(undefined, withDefaults);
   return {
     ...store,
     countByReference: async (reference, id) =>
@@ -202,7 +205,10 @@ export function createMemoryStores() {
       tags: fields.tags ?? [],
     })),
     storageLocations: createMemoryRecordStore<StorageLocationFields>("name"),
-    consumptions: createMemoryMovementStore(),
-    orders: createMemoryMovementStore(),
+    consumptions: createMemoryMovementStore<ConsumptionFields>((fields) => ({
+      ...fields,
+      createdBy: fields.createdBy ?? null,
+    })),
+    orders: createMemoryMovementStore<MovementFields>(),
   } satisfies Stores;
 }

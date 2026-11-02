@@ -175,6 +175,60 @@ describe.each([
   });
 });
 
+describe("ConsumptionModel createdBy", () => {
+  const createdBy = { id: "665f1c2ab0c4d8e9f0a1b2c3", displayName: "Erika Muster" };
+
+  it("defaults to null, also for a stored document without it", async () => {
+    expect(new ConsumptionModel(movement).createdBy).toBeNull();
+    expect(ConsumptionModel.hydrate({ _id: "id", ...movement }).createdBy).toBeNull();
+    expect(await invalidPaths(ConsumptionModel, movement)).toEqual([]);
+  });
+
+  it("holds exactly id and displayName, without an _id of its own", async () => {
+    const doc = new ConsumptionModel({ ...movement, createdBy });
+
+    expect(await invalidPaths(ConsumptionModel, { ...movement, createdBy })).toEqual([]);
+    expect(doc.toObject().createdBy).toEqual(createdBy);
+    expect(doc.createdBy?.id).toBe(createdBy.id);
+    expect(doc.createdBy?.displayName).toBe(createdBy.displayName);
+  });
+
+  it.each(["id", "displayName"] as const)("requires %s", async (field) => {
+    const paths = await invalidPaths(ConsumptionModel, {
+      ...movement,
+      createdBy: { ...createdBy, [field]: undefined },
+    });
+
+    expect(paths).toContain(`createdBy.${field}`);
+  });
+
+  it("rejects unknown fields inside", async () => {
+    const paths = await invalidPaths(ConsumptionModel, {
+      ...movement,
+      createdBy: { ...createdBy, role: "ADMIN" },
+    });
+
+    expect(paths).toEqual(["createdBy"]);
+  });
+
+  it("keeps the value of a stored document", () => {
+    const stored = ConsumptionModel.hydrate({ _id: "id", ...movement, createdBy });
+
+    stored.set("createdBy", { id: "other", displayName: "Fremd" });
+
+    expect(stored.createdBy?.id).toBe(createdBy.id);
+  });
+});
+
+describe("OrderModel createdBy", () => {
+  it("does not exist", () => {
+    expect(OrderModel.schema.path("createdBy")).toBeUndefined();
+    expect(
+      () => new OrderModel({ ...movement, createdBy: { id: "x", displayName: "Fremd" } }),
+    ).toThrow();
+  });
+});
+
 describe("CounterModel", () => {
   it("requires the entity key and a value", async () => {
     expect((await invalidPaths(CounterModel, {})).sort()).toEqual(["_id", "value"]);

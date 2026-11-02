@@ -1,4 +1,4 @@
-import type { Material, Movement, Role, StorageLocation, User } from "@c2r/shared";
+import type { Consumption, Material, Movement, Role, StorageLocation, User } from "@c2r/shared";
 
 export interface StoredUser extends User {
   passwordHash: string | null;
@@ -85,6 +85,7 @@ export interface OidcSettingsStore {
 export type MaterialFields = Pick<Material, "name" | "unit" | "description" | "tags">;
 export type StorageLocationFields = Pick<StorageLocation, "name">;
 export type MovementFields = Pick<Movement, "storageLocationId" | "materialId" | "quantity">;
+export type ConsumptionFields = MovementFields & Pick<Consumption, "createdBy">;
 
 // id and number are assigned by the store, createdAt and updatedAt maintained by it
 export type StoredRecord<Fields extends object> = Fields & {
@@ -105,7 +106,9 @@ export interface RecordStore<Fields extends object> {
 
 export type MovementReference = "storageLocationId" | "materialId";
 
-export interface MovementStore extends RecordStore<MovementFields> {
+export interface MovementStore<
+  Fields extends MovementFields = MovementFields,
+> extends RecordStore<Fields> {
   countByReference(reference: MovementReference, id: string): Promise<number>;
 }
 
@@ -122,6 +125,6 @@ export interface Stores {
   oidcSettings: OidcSettingsStore;
   materials: RecordStore<MaterialFields>;
   storageLocations: RecordStore<StorageLocationFields>;
-  consumptions: MovementStore;
+  consumptions: MovementStore<ConsumptionFields>;
   orders: MovementStore;
 }
