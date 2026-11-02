@@ -9,10 +9,10 @@ import Typography from "@mui/material/Typography";
 import { useState } from "react";
 import { AdminArea } from "./AdminArea";
 import { type ApiClient, apiRequest, errorMessage } from "./api";
-import { HomeView } from "./HomeView";
+import { CaptureArea } from "./CaptureArea";
 import { MasterDataArea } from "./MasterDataArea";
 
-type View = "home" | "masterData" | "admin";
+type View = "capture" | "masterData" | "admin";
 
 interface NavItem {
   view: View;
@@ -21,7 +21,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
-  { view: "home", label: "Start", roles: ROLES },
+  { view: "capture", label: "Erfassung", roles: ROLES },
   { view: "masterData", label: "Stammdaten", roles: ["ADMIN", "MANAGER"] },
   { view: "admin", label: "Administration", roles: ["ADMIN"] },
 ];
@@ -45,16 +45,16 @@ export function AuthenticatedApp({
   onLoggedOut,
   onProvidersChange,
 }: AuthenticatedAppProps) {
-  const [view, setView] = useState<View>("home");
+  const [view, setView] = useState<View>("capture");
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [unsavedNotice, setUnsavedNotice] = useState<string | null>(null);
 
   const navItems = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
   // The view is checked against the role as well. The role here only changes with the user prop:
-  // when an admin edits the own account, or when a 403 in the master data reloads the user.
-  // A role taken away elsewhere stays unnoticed until then.
-  const activeView: View = navItems.some((item) => item.view === view) ? view : "home";
+  // when an admin edits the own account, or when a 403 in the master data or the capture reloads
+  // the user. A role taken away elsewhere stays unnoticed until then.
+  const activeView: View = navItems.some((item) => item.view === view) ? view : "capture";
 
   function changeView(next: View) {
     setUnsavedNotice(null);
@@ -64,7 +64,7 @@ export function AuthenticatedApp({
   /** The master data only report a user after a rejected write (403). */
   function handleUserAfterRejectedWrite(updated: User) {
     if (!isAllowed("masterData", updated.role)) {
-      changeView("home");
+      changeView("capture");
       setUnsavedNotice(
         "Die Änderung wurde nicht gespeichert, weil die Berechtigung für die Stammdaten entzogen wurde.",
       );
@@ -98,18 +98,16 @@ export function AuthenticatedApp({
             Abmelden
           </Button>
         </Toolbar>
-        {navItems.length > 1 && (
-          <Box component="nav" aria-label="Hauptnavigation" sx={{ display: "flex", px: 0.5 }}>
-            {navItems.map((item) => (
-              <NavButton
-                key={item.view}
-                label={item.label}
-                active={activeView === item.view}
-                onClick={() => changeView(item.view)}
-              />
-            ))}
-          </Box>
-        )}
+        <Box component="nav" aria-label="Hauptnavigation" sx={{ display: "flex", px: 0.5 }}>
+          {navItems.map((item) => (
+            <NavButton
+              key={item.view}
+              label={item.label}
+              active={activeView === item.view}
+              onClick={() => changeView(item.view)}
+            />
+          ))}
+        </Box>
       </AppBar>
       <Container maxWidth="sm" sx={{ py: 3 }}>
         {logoutError && (
@@ -127,7 +125,9 @@ export function AuthenticatedApp({
             {unsavedNotice}
           </Alert>
         )}
-        {activeView === "home" && <HomeView api={api} user={user} />}
+        {activeView === "capture" && (
+          <CaptureArea api={api} user={user} onCurrentUserChange={onUserChange} />
+        )}
         {activeView === "masterData" && (
           <MasterDataArea api={api} onCurrentUserChange={handleUserAfterRejectedWrite} />
         )}

@@ -1,4 +1,11 @@
-import { API_PATHS, type Material, type Role, type StorageLocation, type User } from "@c2r/shared";
+import {
+  API_PATHS,
+  type Consumption,
+  type Material,
+  type Role,
+  type StorageLocation,
+  type User,
+} from "@c2r/shared";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -12,6 +19,24 @@ const LOCATION: StorageLocation = {
   name: "Hauptlager",
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
+};
+
+const SCREW: Material = {
+  ...LOCATION,
+  id: "22222222-2222-4222-8222-222222222222",
+  name: "Schraube",
+  unit: "Stück",
+  description: "",
+  tags: [],
+};
+
+const CONSUMPTION: Consumption = {
+  ...LOCATION,
+  id: "33333333-3333-4333-8333-333333333333",
+  storageLocationId: LOCATION.id,
+  materialId: SCREW.id,
+  quantity: 2,
+  createdBy: { id: "someone-else", displayName: "Max Beispiel" },
 };
 
 function userWithRole(role: Role): User {
@@ -28,8 +53,9 @@ function userWithRole(role: Role): User {
 
 function stubRoutes(role: Role) {
   return stubApi({
-    [`GET ${API_PATHS.hello}`]: json({ message: "Hello test" }),
     [`GET ${API_PATHS.storageLocations}`]: json([LOCATION]),
+    [`GET ${API_PATHS.materials}`]: json([SCREW]),
+    [`GET ${API_PATHS.consumptions}`]: json([CONSUMPTION]),
     [`GET ${API_PATHS.adminUsers}`]: json([userWithRole(role)]),
     [`GET ${API_PATHS.adminOidcSettings}`]: json({
       enabled: false,
@@ -70,26 +96,70 @@ afterEach(() => {
 
 describe("AuthenticatedApp navigation", () => {
   it.each<[Role, string[]]>([
-    ["ADMIN", ["Start", "Stammdaten", "Administration"]],
-    ["MANAGER", ["Start", "Stammdaten"]],
+    ["ADMIN", ["Erfassung", "Stammdaten", "Administration"]],
+    ["MANAGER", ["Erfassung", "Stammdaten"]],
   ])("offers the items allowed for %s", async (role, labels) => {
     stubRoutes(role);
 
     render(appWithRole(role));
-    await screen.findByText("Hello test");
+    await screen.findByText("Nr. 1");
 
     expect(navLabels()).toEqual(labels);
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
   });
 
-  it("shows no navigation to USER and does not load master data", async () => {
+  it("offers only the capture to USER", async () => {
     const stub = stubRoutes("USER");
 
     render(appWithRole("USER"));
-    await screen.findByText("Hello test");
+    await screen.findByText("Nr. 1");
 
-    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(navLabels()).toEqual(["Erfassung"]);
     expect(screen.queryByRole("button", { name: "Stammdaten" })).toBeNull();
-    expect(stub.bodies(`GET ${API_PATHS.storageLocations}`)).toHaveLength(0);
+    expect(screen.getByRole("heading", { name: "Erfassung" })).toBeTruthy();
+    expect(stub.bodies(`GET ${API_PATHS.adminUsers}`)).toHaveLength(0);
+  });
+
+  it.each<Role>(["ADMIN", "MANAGER", "USER"])("starts with the capture for %s", async (role) => {
+    stubRoutes(role);
+
+    render(appWithRole(role));
+
+    expect(screen.getByRole("heading", { name: "Erfassung" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Verbrauch/Bedarf" })).toBeTruthy();
+    await screen.findByText("Nr. 1");
+    expect(screen.queryByRole("heading", { name: "Stammdaten" })).toBeNull();
+  });
+
+  it("offers new master data after coming back from the master data", async () => {
+    const stub = stubRoutes("MANAGER");
+
+    render(appWithRole("MANAGER"));
+    await screen.findByText("Nr. 1");
+    fireEvent.click(screen.getByRole("button", { name: "Stammdaten" }));
+    await screen.findByText("Hauptlager");
+    stub.routes[`GET ${API_PATHS.storageLocations}`] = json([
+      LOCATION,
+      { ...LOCATION, id: "l2", number: 2, name: "Keller" },
+    ]);
+    stub.routes[`GET ${API_PATHS.materials}`] = json([
+      SCREW,
+      { ...SCREW, id: "m2", number: 2, name: "Mutter" },
+    ]);
+    stub.routes[`GET ${API_PATHS.consumptions}`] = json([
+      CONSUMPTION,
+      { ...CONSUMPTION, id: "c2", number: 2 },
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Erfassung" }));
+
+    expect(await screen.findByText("Nr. 2")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Verbrauch erfassen" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("option", { name: "Keller" })).toBeTruthy();
+    fireEvent.change(within(dialog).getByRole("combobox", { name: "Material" }), {
+      target: { value: "mut" },
+    });
+    expect(await screen.findByRole("option", { name: "Mutter (Stück)" })).toBeTruthy();
   });
 
   it.each<Role>(["ADMIN", "MANAGER"])("opens the storage locations for %s", async (role) => {
@@ -114,7 +184,8 @@ describe("AuthenticatedApp navigation", () => {
 
     expect(await screen.findByRole("tab", { name: "Benutzer" })).toBeTruthy();
     expect(screen.queryByText("Lagerorte")).toBeNull();
-    expect(stub.bodies(`GET ${API_PATHS.storageLocations}`)).toHaveLength(0);
+    expect(screen.queryByRole("heading", { name: "Erfassung" })).toBeNull();
+    expect(stub.bodies(`GET ${API_PATHS.adminUsers}`)).toHaveLength(1);
   });
 });
 
@@ -128,9 +199,9 @@ describe("AuthenticatedApp view filter for a changed user prop", () => {
 
     rerender(appWithRole("USER"));
 
-    expect(await screen.findByText("Hello test")).toBeTruthy();
-    expect(screen.queryByText("Hauptlager")).toBeNull();
-    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(await screen.findByText("Nr. 1")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Stammdaten" })).toBeNull();
+    expect(navLabels()).toEqual(["Erfassung"]);
   });
 
   it("leaves the administration view when the role no longer allows it", async () => {
@@ -142,9 +213,9 @@ describe("AuthenticatedApp view filter for a changed user prop", () => {
 
     rerender(appWithRole("MANAGER"));
 
-    expect(await screen.findByText("Hello test")).toBeTruthy();
+    expect(await screen.findByText("Nr. 1")).toBeTruthy();
     expect(screen.queryByRole("tab")).toBeNull();
-    expect(navLabels()).toEqual(["Start", "Stammdaten"]);
+    expect(navLabels()).toEqual(["Erfassung", "Stammdaten"]);
   });
 
   it("keeps the master data view when the new role still allows it", async () => {
@@ -157,6 +228,66 @@ describe("AuthenticatedApp view filter for a changed user prop", () => {
     rerender(appWithRole("MANAGER"));
 
     expect(screen.getByText("Hauptlager")).toBeTruthy();
+  });
+});
+
+describe("AuthenticatedApp role taken away while in the capture", () => {
+  const OWN: Consumption = {
+    ...CONSUMPTION,
+    createdBy: { id: "u1", displayName: "Erika Muster" },
+  };
+  const OTHER: Consumption = { ...CONSUMPTION, id: "c2", number: 2 };
+  const SAVE_ROUTE = `PATCH ${API_PATHS.consumptions}/${OTHER.id}`;
+  const FORBIDDEN = "Keine Berechtigung.";
+
+  function App() {
+    const [user, setUser] = useState(userWithRole("MANAGER"));
+    return (
+      <AuthenticatedApp
+        api={api}
+        user={user}
+        onUserChange={setUser}
+        onLoggedOut={vi.fn()}
+        onProvidersChange={vi.fn()}
+      />
+    );
+  }
+
+  async function saveOther(role: Role) {
+    const stub = stubRoutes("MANAGER");
+    stub.routes[`GET ${API_PATHS.consumptions}`] = json([OWN, OTHER]);
+    stub.routes[SAVE_ROUTE] = json({ message: FORBIDDEN }, 403);
+    stub.routes[`GET ${API_PATHS.me}`] = json(userWithRole(role));
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten: Nr. 2" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Menge" }), {
+      target: { value: "5" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Speichern" }));
+    return stub;
+  }
+
+  it("stays in the capture and only offers the buttons of the new role", async () => {
+    await saveOther("USER");
+
+    expect(await screen.findByText(FORBIDDEN)).toBeTruthy();
+    await screen.findByText("USER");
+    await screen.findByText("Nr. 2");
+    expect(screen.getByRole("heading", { name: "Erfassung" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Bearbeiten: Nr. 2" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Bearbeiten: Nr. 1" })).toBeTruthy();
+    expect(screen.queryByText(/Die Änderung wurde nicht gespeichert/)).toBeNull();
+    expect(navLabels()).toEqual(["Erfassung"]);
+  });
+
+  it("keeps the message and the buttons when the role is unchanged", async () => {
+    const stub = await saveOther("MANAGER");
+
+    expect(await screen.findByText(FORBIDDEN)).toBeTruthy();
+    await waitFor(() => expect(stub.bodies(`GET ${API_PATHS.me}`)).toHaveLength(1));
+    expect(await screen.findByRole("button", { name: "Bearbeiten: Nr. 2" })).toBeTruthy();
+    expect(screen.getByText(FORBIDDEN)).toBeTruthy();
   });
 });
 
@@ -187,15 +318,15 @@ describe("AuthenticatedApp role taken away elsewhere", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
   }
 
-  it("falls back to the start view without navigation after a 403 and the reloaded user", async () => {
+  it("falls back to the capture with only its menu item after a 403 and the reloaded user", async () => {
     const stub = stubRoutes("MANAGER");
     stub.routes[SAVE_ROUTE] = json({ message: FORBIDDEN }, 403);
     stub.routes[`GET ${API_PATHS.me}`] = json(userWithRole("USER"));
 
     await saveInMasterData();
 
-    expect(await screen.findByText("Hello test")).toBeTruthy();
-    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(await screen.findByText("Nr. 1")).toBeTruthy();
+    expect(navLabels()).toEqual(["Erfassung"]);
     expect(screen.queryByRole("heading", { name: "Stammdaten" })).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByText("USER")).toBeTruthy();
@@ -217,7 +348,7 @@ describe("AuthenticatedApp role taken away elsewhere", () => {
 
   const UNSAVED = /Die Änderung wurde nicht gespeichert/;
 
-  it("explains on the start view that the change was not saved", async () => {
+  it("explains in the capture that the change was not saved", async () => {
     const stub = stubRoutes("MANAGER");
     stub.routes[SAVE_ROUTE] = json({ message: FORBIDDEN }, 403);
     stub.routes[`GET ${API_PATHS.me}`] = json(userWithRole("USER"));
@@ -225,7 +356,8 @@ describe("AuthenticatedApp role taken away elsewhere", () => {
     await saveInMasterData();
 
     expect(await screen.findByText(UNSAVED)).toBeTruthy();
-    expect(await screen.findByText("Hello test")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Erfassung" })).toBeTruthy();
+    expect(await screen.findByText("Nr. 1")).toBeTruthy();
   });
 
   it("explains it as well for a material from the material tab", async () => {
@@ -265,7 +397,7 @@ describe("AuthenticatedApp role taken away elsewhere", () => {
   });
 
   it("removes the explanation with the next change of the view", async () => {
-    // A USER has no navigation, so the test gives the role back to reach a change of the view.
+    // A USER has only one menu item, so the test gives the role back to reach a change of the view.
     const stub = stubRoutes("MANAGER");
     stub.routes[SAVE_ROUTE] = json({ message: FORBIDDEN }, 403);
     stub.routes[`GET ${API_PATHS.me}`] = json(userWithRole("USER"));
@@ -296,7 +428,7 @@ describe("AuthenticatedApp role taken away elsewhere", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Rolle zurück" }));
     expect(screen.getByText(UNSAVED)).toBeTruthy();
-    expect(await screen.findByText("Hello test")).toBeTruthy();
+    expect(await screen.findByText("Nr. 1")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Stammdaten" }));
 

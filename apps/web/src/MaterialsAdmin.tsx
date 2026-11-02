@@ -36,6 +36,7 @@ export function MaterialsAdmin({ api, active, onCurrentUserChange }: MaterialsAd
       api={api}
       path={API_PATHS.materials}
       texts={TEXTS}
+      recordLabel={(material) => material.name}
       active={active}
       onCurrentUserChange={onCurrentUserChange}
       renderList={(materials, actions) => (

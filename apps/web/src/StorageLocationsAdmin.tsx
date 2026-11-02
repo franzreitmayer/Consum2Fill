@@ -36,6 +36,7 @@ export function StorageLocationsAdmin({
       api={api}
       path={API_PATHS.storageLocations}
       texts={TEXTS}
+      recordLabel={(location) => location.name}
       active={active}
       onCurrentUserChange={onCurrentUserChange}
       renderList={(locations, { onEdit, onDelete }) => (

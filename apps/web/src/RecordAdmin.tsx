@@ -13,7 +13,6 @@ import { useApiResource } from "./useApiResource";
 interface AdminRecord {
   id: string;
   number: number;
-  name: string;
 }
 
 type DialogState<T> =
@@ -53,6 +52,12 @@ interface RecordAdminProps<T extends AdminRecord, Body> {
   api: ApiClient;
   path: string;
   texts: RecordAdminTexts;
+  /** Names the record in the question before deleting it. */
+  recordLabel: (record: T) => string;
+  /** By number; "desc" shows the newest records first. */
+  sortOrder?: "asc" | "desc";
+  /** Replaces the create button when a new record could not be filled in. */
+  createBlockedHint?: ReactNode;
   /** False while hidden in a tab; becoming active again refreshes the list in the background. */
   active?: boolean;
   onCurrentUserChange: (user: User) => void;
@@ -75,6 +80,9 @@ export function RecordAdmin<T extends AdminRecord, Body>({
   api,
   path,
   texts,
+  recordLabel,
+  sortOrder = "asc",
+  createBlockedHint,
   active = true,
   onCurrentUserChange,
   renderList,
@@ -119,7 +127,9 @@ export function RecordAdmin<T extends AdminRecord, Body>({
       </Stack>
     );
   }
-  const records = state.data;
+  // Sorted here for the list from the server and for local changes alike.
+  const direction = sortOrder === "asc" ? 1 : -1;
+  const records = [...state.data].sort((a, b) => direction * (a.number - b.number));
 
   function recordPath(id: string): string {
     return `${path}/${encodeURIComponent(id)}`;
@@ -177,11 +187,7 @@ export function RecordAdmin<T extends AdminRecord, Body>({
     return send(async () => {
       const created = await api<T>(path, { method: "POST", body });
       // A refresh during the request may already have delivered the new record.
-      updateData((current) =>
-        [...current.filter((other) => other.id !== created.id), created].sort(
-          (a, b) => a.number - b.number,
-        ),
-      );
+      updateData((current) => [...current.filter((other) => other.id !== created.id), created]);
       finish(texts.created);
     });
   }
@@ -205,9 +211,11 @@ export function RecordAdmin<T extends AdminRecord, Body>({
   return (
     <Stack spacing={2}>
       {noticeAlert}
-      <Button variant="contained" fullWidth onClick={() => openDialog({ kind: "create" })}>
-        {texts.createButton}
-      </Button>
+      {createBlockedHint ?? (
+        <Button variant="contained" fullWidth onClick={() => openDialog({ kind: "create" })}>
+          {texts.createButton}
+        </Button>
+      )}
       {records.length === 0 ? (
         <Typography>{texts.empty}</Typography>
       ) : (
@@ -235,7 +243,7 @@ export function RecordAdmin<T extends AdminRecord, Body>({
           onSubmit={() => handleDelete(dialog.record)}
         >
           <Typography sx={{ overflowWrap: "anywhere" }}>
-            Soll „{dialog.record.name}“ wirklich gelöscht werden?
+            Soll „{recordLabel(dialog.record)}“ wirklich gelöscht werden?
           </Typography>
         </FormDialog>
       )}

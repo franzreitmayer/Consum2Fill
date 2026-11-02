@@ -5,7 +5,8 @@ import { App } from "./App";
 import { type RouteHandler, json, noContent, stubApi } from "./testing/stubApi";
 
 const CHANGE_ROUTE = `PUT ${API_PATHS.ownPassword}`;
-const HELLO_ROUTE = `GET ${API_PATHS.hello}`;
+const LIST_ROUTE = `GET ${API_PATHS.consumptions}`;
+const LOADED_TEXT = "Noch kein Verbrauch erfasst.";
 const SCREEN_HEADING = { name: "Passwort ändern" };
 const CURRENT_PASSWORD = "startpasswort";
 const VALID_PASSWORD = "n".repeat(MIN_PASSWORD_LENGTH);
@@ -25,7 +26,9 @@ function routesFor(user: User, extra: Record<string, RouteHandler> = {}) {
   return {
     [`GET ${API_PATHS.me}`]: json(user),
     [`GET ${API_PATHS.authProviders}`]: json({ oidc: null }),
-    [HELLO_ROUTE]: json({ message: "Hello test" }),
+    [`GET ${API_PATHS.storageLocations}`]: json([]),
+    [`GET ${API_PATHS.materials}`]: json([]),
+    [LIST_ROUTE]: json([]),
     [`POST ${API_PATHS.logout}`]: noContent,
     ...extra,
   };
@@ -63,10 +66,10 @@ describe("ChangePasswordScreen in the app", () => {
   it("replaces the app when the loaded session requires a change", async () => {
     const api = await renderScreen();
 
-    expect(screen.queryByText("Hello test")).toBeNull();
+    expect(screen.queryByText(LOADED_TEXT)).toBeNull();
     expect(screen.queryByRole("button", { name: "Administration" })).toBeNull();
     expect(screen.getByText(/noch ein Startpasswort/)).toBeTruthy();
-    expect(api.bodies(HELLO_ROUTE)).toHaveLength(0);
+    expect(api.bodies(LIST_ROUTE)).toHaveLength(0);
   });
 
   it("replaces the app after a login that requires a change", async () => {
@@ -85,15 +88,15 @@ describe("ChangePasswordScreen in the app", () => {
     fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
 
     expect(await screen.findByRole("heading", SCREEN_HEADING)).toBeTruthy();
-    expect(screen.queryByText("Hello test")).toBeNull();
-    expect(api.bodies(HELLO_ROUTE)).toHaveLength(0);
+    expect(screen.queryByText(LOADED_TEXT)).toBeNull();
+    expect(api.bodies(LIST_ROUTE)).toHaveLength(0);
   });
 
   it("does not appear when no change is required", async () => {
     stubApi(routesFor(CHANGED_USER));
     render(<App />);
 
-    expect(await screen.findByText("Hello test")).toBeTruthy();
+    expect(await screen.findByText(LOADED_TEXT)).toBeTruthy();
     expect(screen.queryByRole("heading", SCREEN_HEADING)).toBeNull();
   });
 
@@ -117,7 +120,7 @@ describe("ChangePasswordScreen in the app", () => {
     fillForm(` ${VALID_PASSWORD} `);
     submit();
 
-    expect(await screen.findByText("Hello test")).toBeTruthy();
+    expect(await screen.findByText(LOADED_TEXT)).toBeTruthy();
     expect(screen.queryByRole("heading", SCREEN_HEADING)).toBeNull();
     expect(screen.getByRole("button", { name: "Administration" })).toBeTruthy();
     expect(api.bodies(CHANGE_ROUTE)).toEqual([
@@ -131,7 +134,7 @@ describe("ChangePasswordScreen in the app", () => {
     fillForm(VALID_PASSWORD);
     submit();
 
-    expect(await screen.findByText("Hello test")).toBeTruthy();
+    expect(await screen.findByText(LOADED_TEXT)).toBeTruthy();
     expect(api.bodies(CHANGE_ROUTE)).toHaveLength(1);
   });
 
@@ -147,7 +150,7 @@ describe("ChangePasswordScreen in the app", () => {
 
     expect(await screen.findByText(message)).toBeTruthy();
     expect(screen.getByRole("heading", SCREEN_HEADING)).toBeTruthy();
-    expect(screen.queryByText("Hello test")).toBeNull();
+    expect(screen.queryByText(LOADED_TEXT)).toBeNull();
     expect(
       (screen.getByRole("button", { name: "Passwort ändern" }) as HTMLButtonElement).disabled,
     ).toBe(false);

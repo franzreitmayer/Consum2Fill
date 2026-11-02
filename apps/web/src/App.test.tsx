@@ -1,9 +1,22 @@
-import { API_PATHS, type Role, type User } from "@c2r/shared";
+import { API_PATHS, type Material, type Role, type StorageLocation, type User } from "@c2r/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { type RouteHandler, json, noContent, stubApi } from "./testing/stubApi";
 
+const TIMES = { createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+const LOCATION: StorageLocation = { id: "l1", number: 1, name: "Hauptlager", ...TIMES };
+const MATERIAL: Material = {
+  id: "m1",
+  number: 1,
+  name: "Schraube",
+  unit: "Stück",
+  description: "",
+  tags: [],
+  ...TIMES,
+};
+const LIST_ROUTE = `GET ${API_PATHS.consumptions}`;
+const LOADED_TEXT = "Noch kein Verbrauch erfasst.";
 const UNAUTHORIZED = json({ message: "Nicht angemeldet" }, 401);
 
 function userWithRole(role: Role): User {
@@ -22,7 +35,9 @@ function signedInRoutes(role: Role): Record<string, RouteHandler> {
   return {
     [`GET ${API_PATHS.me}`]: json(userWithRole(role)),
     [`GET ${API_PATHS.authProviders}`]: json({ oidc: null }),
-    [`GET ${API_PATHS.hello}`]: json({ message: "Hello test" }),
+    [`GET ${API_PATHS.storageLocations}`]: json([LOCATION]),
+    [`GET ${API_PATHS.materials}`]: json([MATERIAL]),
+    [LIST_ROUTE]: json([]),
     [`GET ${API_PATHS.adminUsers}`]: json([userWithRole(role)]),
     [`GET ${API_PATHS.adminOidcSettings}`]: json({
       enabled: false,
@@ -49,7 +64,7 @@ describe("App startup", () => {
     render(<App />);
 
     expect(screen.getByRole("progressbar", { name: "Wird geladen" })).toBeTruthy();
-    await screen.findByText("Hello test");
+    await screen.findByText(LOADED_TEXT);
   });
 
   it("shows the login screen when there is no session", async () => {
@@ -71,7 +86,7 @@ describe("App startup", () => {
     stubApi(routes);
     fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
 
-    expect(await screen.findByText("Hello test")).toBeTruthy();
+    expect(await screen.findByText(LOADED_TEXT)).toBeTruthy();
   });
 
   it("shows an error when the network fails", async () => {
@@ -96,7 +111,7 @@ describe("App startup", () => {
 });
 
 describe("App session", () => {
-  it("shows greeting, name and role after a login", async () => {
+  it("shows the capture with name and role in the header after a login", async () => {
     stubApi({
       ...signedInRoutes("MANAGER"),
       [`GET ${API_PATHS.me}`]: UNAUTHORIZED,
@@ -111,17 +126,17 @@ describe("App session", () => {
     fireEvent.change(screen.getByLabelText(/^Passwort/), { target: { value: "geheim123" } });
     fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
 
-    expect(await screen.findByText("Hello test")).toBeTruthy();
+    expect(await screen.findByText(LOADED_TEXT)).toBeTruthy();
     expect(screen.getByText("Erika Muster")).toBeTruthy();
     expect(screen.getByText("MANAGER")).toBeTruthy();
-    expect(screen.getByText("Angemeldet als Erika Muster, Rolle MANAGER")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Erfassung" })).toBeTruthy();
   });
 
   it("returns to the login screen after logout", async () => {
     const api = stubApi(signedInRoutes("USER"));
 
     render(<App />);
-    await screen.findByText("Hello test");
+    await screen.findByText(LOADED_TEXT);
     fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
 
     expect(await screen.findByRole("button", { name: "Anmelden" })).toBeTruthy();
@@ -132,7 +147,7 @@ describe("App session", () => {
     stubApi(signedInRoutes("USER"));
 
     render(<App />);
-    await screen.findByText("Hello test");
+    await screen.findByText(LOADED_TEXT);
 
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
@@ -144,7 +159,7 @@ describe("App session", () => {
   });
 
   it("returns to the login screen when a later request answers with 401", async () => {
-    stubApi({ ...signedInRoutes("USER"), [`GET ${API_PATHS.hello}`]: UNAUTHORIZED });
+    stubApi({ ...signedInRoutes("USER"), [LIST_ROUTE]: UNAUTHORIZED });
 
     render(<App />);
 
@@ -154,16 +169,16 @@ describe("App session", () => {
 
   it("shows the message when a password change becomes due during the session", async () => {
     const message = "Das Passwort muss zuerst geändert werden.";
-    stubApi({ ...signedInRoutes("USER"), [`GET ${API_PATHS.hello}`]: json({ message }, 403) });
+    stubApi({ ...signedInRoutes("USER"), [LIST_ROUTE]: json({ message }, 403) });
 
     render(<App />);
 
     expect(await screen.findByText(message)).toBeTruthy();
   });
 
-  it("shows the hello error with a retry", async () => {
+  it("shows a load error of the capture with a retry", async () => {
     const routes = signedInRoutes("USER");
-    stubApi({ ...routes, [`GET ${API_PATHS.hello}`]: json({ message: "Fehler beim Laden" }, 500) });
+    stubApi({ ...routes, [LIST_ROUTE]: json({ message: "Fehler beim Laden" }, 500) });
 
     render(<App />);
 
@@ -172,7 +187,7 @@ describe("App session", () => {
     stubApi(routes);
     fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
 
-    expect(await screen.findByText("Hello test")).toBeTruthy();
+    expect(await screen.findByText(LOADED_TEXT)).toBeTruthy();
   });
 });
 
@@ -192,7 +207,7 @@ describe("App administration access", () => {
     const api = stubApi(signedInRoutes(role));
 
     render(<App />);
-    await screen.findByText("Hello test");
+    await screen.findByText(LOADED_TEXT);
 
     expect(screen.queryByRole("button", { name: "Administration" })).toBeNull();
     expect(screen.queryByRole("tab")).toBeNull();
@@ -213,7 +228,7 @@ describe("App administration access", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    expect(await screen.findByText("Hello test")).toBeTruthy();
+    expect(await screen.findByText(LOADED_TEXT)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Administration" })).toBeNull();
   });
 
