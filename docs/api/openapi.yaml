@@ -102,6 +102,38 @@ paths:
                 $ref: "#/components/schemas/User"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /api/auth/password:
+    put:
+      operationId: changeOwnPassword
+      summary: >-
+        Ändert das Passwort des angemeldeten lokalen Benutzers, hebt mustChangePassword auf, beendet
+        alle Sitzungen des Benutzers und setzt ein neues Sitzungscookie. Bei falschem aktuellem
+        Passwort antwortet die API mit 400, für IAM-Benutzer mit 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeOwnPasswordRequest"
+      responses:
+        "200":
+          description: Angemeldeter Benutzer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          description: Zu viele fehlgeschlagene Versuche
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/auth/oidc/login:
     get:
       operationId: startOidcLogin
@@ -109,7 +141,9 @@ paths:
       security: []
       responses:
         "302":
-          description: Weiterleitung zum Identity Provider, bei einem Fehler nach /?loginError=oidc
+          description: >-
+            Weiterleitung zum Identity Provider. Bei einem Fehler, auch bei zu vielen Versuchen, nach
+            /?loginError=oidc
   /api/auth/oidc/callback:
     get:
       operationId: finishOidcLogin
@@ -674,7 +708,7 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
     Forbidden:
-      description: Rolle reicht nicht aus
+      description: Rolle reicht nicht aus, oder das Passwort muss zuerst geändert werden (mustChangePassword)
       content:
         application/json:
           schema:
@@ -719,7 +753,7 @@ components:
       enum: [ADMIN, MANAGER, USER]
     User:
       type: object
-      required: [id, username, displayName, email, role, source]
+      required: [id, username, displayName, email, role, source, mustChangePassword]
       properties:
         id:
           type: string
@@ -734,6 +768,9 @@ components:
         source:
           type: string
           enum: [local, oidc]
+        mustChangePassword:
+          type: boolean
+          description: Solange true, sind nur /api/auth/me, /api/auth/password und /api/auth/logout nutzbar
     AuthProvidersResponse:
       type: object
       required: [oidc]
@@ -829,6 +866,16 @@ components:
             issuerUrl gleich bleibt. Bei geänderter issuerUrl antwortet die API mit 400, wenn
             enabled true ist; sonst verwirft sie das Secret.
           type: string
+    ChangeOwnPasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8
+          description: Muss sich vom aktuellen Passwort unterscheiden
     Material:
       type: object
       description: Namen und Einheiten speichert die API ohne umgebende Leerzeichen.
