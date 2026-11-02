@@ -18,8 +18,9 @@ export interface RecordRouterOptions<Fields extends object> {
   parseUpdate: (body: unknown) => Partial<Fields>;
   // Set for entities with a unique field
   duplicateMessage?: string;
-  // Both run inside the lock, in one step with the write that depends on them.
+  // These run inside the lock, in one step with the write that depends on them.
   beforeWrite?: (fields: Partial<Fields>) => Promise<void>;
+  beforeUpdate?: (existing: StoredRecord<Fields>, patch: Partial<Fields>) => Promise<void>;
   beforeDelete?: (id: string) => Promise<void>;
 }
 
@@ -39,7 +40,7 @@ export function createRecordRouter<Fields extends object>(
   options: RecordRouterOptions<Fields>,
 ): Router {
   const { path, store, writeRoles, notFoundMessage, duplicateMessage } = options;
-  const { parseCreate, parseUpdate, beforeWrite, beforeDelete } = options;
+  const { parseCreate, parseUpdate, beforeWrite, beforeUpdate, beforeDelete } = options;
   const recordPath = `${path}/:id`;
   const requireWriteRole = requireRole(...writeRoles);
   const router = Router();
@@ -98,8 +99,9 @@ export function createRecordRouter<Fields extends object>(
     const id = parseId(req.params.id);
     const patch = parseUpdate(req.body);
     const updated = await domainLock(async () => {
-      await findRecord(id);
+      const existing = await findRecord(id);
       await beforeWrite?.(patch);
+      await beforeUpdate?.(existing, patch);
       return mapDuplicate(() => store.update(id, patch));
     });
     if (!updated) throw new HttpError(404, notFoundMessage);

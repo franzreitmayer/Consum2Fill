@@ -1,8 +1,12 @@
 import {
   DEFAULT_UNIT,
+  MAX_DESCRIPTION_LENGTH,
+  MAX_TAG_LENGTH,
+  MAX_TAGS,
   MIN_PASSWORD_LENGTH,
   ROLES,
   type ChangeOwnPasswordRequest,
+  type CreateMaterialRequest,
   type CreateMovementRequest,
   type CreateStorageLocationRequest,
   type CreateUserRequest,
@@ -143,12 +147,43 @@ function assertHasChanges(patch: object): void {
   if (Object.keys(patch).length === 0) throw badRequest("Es wurde keine Änderung angegeben.");
 }
 
-export function parseCreateMaterial(value: unknown): { name: string; unit: string } {
+function parseDescription(value: unknown): string {
+  const label = "Die Beschreibung";
+  const text = parseText(value, label);
+  assertStorableCharacters(text, label);
+  if (text.length > MAX_DESCRIPTION_LENGTH) {
+    throw badRequest(`${label} darf höchstens ${MAX_DESCRIPTION_LENGTH} Zeichen lang sein.`);
+  }
+  return text;
+}
+
+function parseTags(value: unknown): string[] {
+  if (!Array.isArray(value)) throw badRequest("Die Schlagworte müssen eine Liste sein.");
+  // By the case-insensitive key, the first spelling stays. toLowerCase() does not depend on the
+  // locale of the server, unlike toLocaleLowerCase() without a fixed locale.
+  const tagsByKey = new Map<string, string>();
+  for (const item of value as unknown[]) {
+    const tag = parseRequiredText(item, "Ein Schlagwort");
+    if (tag.length > MAX_TAG_LENGTH) {
+      throw badRequest(`Ein Schlagwort darf höchstens ${MAX_TAG_LENGTH} Zeichen lang sein.`);
+    }
+    const key = tag.toLowerCase();
+    if (!tagsByKey.has(key)) tagsByKey.set(key, tag);
+  }
+  if (tagsByKey.size > MAX_TAGS) {
+    throw badRequest(`Ein Material darf höchstens ${MAX_TAGS} Schlagworte haben.`);
+  }
+  return [...tagsByKey.values()];
+}
+
+export function parseCreateMaterial(value: unknown): Required<CreateMaterialRequest> {
   const body = parseBody(value);
   return {
     name: parseRequiredText(body.name, "Der Name"),
     unit:
       body.unit === undefined ? DEFAULT_UNIT : parseRequiredText(body.unit, "Die Mengeneinheit"),
+    description: body.description === undefined ? "" : parseDescription(body.description),
+    tags: body.tags === undefined ? [] : parseTags(body.tags),
   };
 }
 
@@ -157,6 +192,8 @@ export function parseUpdateMaterial(value: unknown): UpdateMaterialRequest {
   const patch: UpdateMaterialRequest = {};
   if (body.name !== undefined) patch.name = parseRequiredText(body.name, "Der Name");
   if (body.unit !== undefined) patch.unit = parseRequiredText(body.unit, "Die Mengeneinheit");
+  if (body.description !== undefined) patch.description = parseDescription(body.description);
+  if (body.tags !== undefined) patch.tags = parseTags(body.tags);
   assertHasChanges(patch);
   return patch;
 }

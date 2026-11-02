@@ -248,7 +248,14 @@ export const mongoStores: Stores = {
   materials: createMongoRecordStore<MaterialDocument, MaterialFields>(MaterialModel, {
     entity: "materials",
     uniqueField: "name",
-    toFields: ({ name, unit }) => ({ name, unit }),
+    // Documents from before description and tags have neither, and the spread turns the
+    // MongooseArray into a plain array.
+    toFields: ({ name, unit, description, tags }) => ({
+      name,
+      unit,
+      description: description ?? "",
+      tags: [...(tags ?? [])],
+    }),
   }),
   storageLocations: createMongoRecordStore<StorageLocationDocument, StorageLocationFields>(
     StorageLocationModel,

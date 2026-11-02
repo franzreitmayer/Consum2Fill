@@ -1,4 +1,4 @@
-import { DEFAULT_UNIT } from "@c2r/shared";
+import { DEFAULT_UNIT, MAX_DESCRIPTION_LENGTH, MAX_TAG_LENGTH, MAX_TAGS } from "@c2r/shared";
 import type mongoose from "mongoose";
 import { describe, expect, it } from "vitest";
 import { ConsumptionModel } from "./consumption.js";
@@ -97,6 +97,58 @@ describe("MaterialModel unit", () => {
     expect(await invalidPaths(MaterialModel, { number: 1, name: "a", unit: " " })).toEqual([
       "unit",
     ]);
+  });
+});
+
+describe("MaterialModel description and tags", () => {
+  const valid = { number: 1, name: "a" };
+
+  it("default to an empty text and an empty list that is not shared", () => {
+    const first = new MaterialModel(valid);
+    const second = new MaterialModel(valid);
+
+    expect(first.description).toBe("");
+    expect([...first.tags]).toEqual([]);
+    first.tags.push("x");
+    expect([...second.tags]).toEqual([]);
+  });
+
+  it("are applied to a stored document without them", () => {
+    const stored = MaterialModel.hydrate({ _id: "id", ...valid, unit: "Liter" });
+
+    expect(stored.description).toBe("");
+    expect([...stored.tags]).toEqual([]);
+  });
+
+  it("limit the description", async () => {
+    const description = "x".repeat(MAX_DESCRIPTION_LENGTH);
+
+    expect(await invalidPaths(MaterialModel, { ...valid, description })).toEqual([]);
+    expect(await invalidPaths(MaterialModel, { ...valid, description: `${description}x` })).toEqual(
+      ["description"],
+    );
+  });
+
+  it("limit the number of tags", async () => {
+    const tags = Array.from({ length: MAX_TAGS }, (_, index) => `t${index}`);
+
+    expect(await invalidPaths(MaterialModel, { ...valid, tags })).toEqual([]);
+    expect(await invalidPaths(MaterialModel, { ...valid, tags: [...tags, "x"] })).toEqual(["tags"]);
+  });
+
+  it("limit the length of a tag and reject a blank one", async () => {
+    const tag = "x".repeat(MAX_TAG_LENGTH);
+
+    expect(await invalidPaths(MaterialModel, { ...valid, tags: [tag] })).toEqual([]);
+    expect(await invalidPaths(MaterialModel, { ...valid, tags: [`${tag}x`] })).toEqual(["tags.0"]);
+    expect(await invalidPaths(MaterialModel, { ...valid, tags: ["a", " "] })).toEqual(["tags.1"]);
+  });
+
+  it("trim the description and the tags", () => {
+    const material = new MaterialModel({ ...valid, description: " a\nb ", tags: [" c "] });
+
+    expect(material.description).toBe("a\nb");
+    expect([...material.tags]).toEqual(["c"]);
   });
 });
 

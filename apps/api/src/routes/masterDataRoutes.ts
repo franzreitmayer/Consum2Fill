@@ -36,6 +36,15 @@ export function createMasterDataRouter(context: RouteContext): Router {
       duplicateMessage: "Der Name des Materials ist bereits vergeben.",
       parseCreate: parseCreateMaterial,
       parseUpdate: parseUpdateMaterial,
+      // Sending the current unit again is no change, so a form may always send all fields.
+      beforeUpdate: async (existing, { unit }) => {
+        if (unit !== undefined && unit !== existing.unit) {
+          await assertUnused(
+            "materialId",
+            "Die Mengeneinheit kann nicht geändert werden, solange ein Verbrauch oder eine Bestellung auf das Material verweist.",
+          )(existing.id);
+        }
+      },
       beforeDelete: assertUnused(
         "materialId",
         "Das Material wird noch verwendet und kann nicht gelöscht werden.",

@@ -10,7 +10,11 @@ const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ISO_TEXT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 describe.each([
-  { label: "materials", path: API_PATHS.materials, extra: { unit: DEFAULT_UNIT } },
+  {
+    label: "materials",
+    path: API_PATHS.materials,
+    extra: { unit: DEFAULT_UNIT, description: "", tags: [] },
+  },
   { label: "storage locations", path: API_PATHS.storageLocations, extra: {} },
 ])("$label", ({ path, extra }) => {
   let context: Context;

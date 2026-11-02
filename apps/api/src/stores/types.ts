@@ -82,7 +82,7 @@ export interface OidcSettingsStore {
   save(settings: StoredOidcSettings): Promise<void>;
 }
 
-export type MaterialFields = Pick<Material, "name" | "unit">;
+export type MaterialFields = Pick<Material, "name" | "unit" | "description" | "tags">;
 export type StorageLocationFields = Pick<StorageLocation, "name">;
 export type MovementFields = Pick<Movement, "storageLocationId" | "materialId" | "quantity">;
 

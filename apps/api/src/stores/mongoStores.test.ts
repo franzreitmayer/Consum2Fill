@@ -139,7 +139,7 @@ describe("countByReference", () => {
 });
 
 describe("create in a Mongo record store", () => {
-  const fields = { name: "Schraube", unit: "Stück" };
+  const fields = { name: "Schraube", unit: "Stück", description: "", tags: ["Eisen"] };
 
   it("assigns the number and returns no internal fields", async () => {
     mockCounter(3);
@@ -149,8 +149,9 @@ describe("create in a Mongo record store", () => {
 
     expect(record).toMatchObject({ ...fields, number: 3, id: expect.any(String) });
     expect(Object.keys(record).sort()).toEqual(
-      ["createdAt", "id", "name", "number", "unit", "updatedAt"].sort(),
+      ["createdAt", "description", "id", "name", "number", "tags", "unit", "updatedAt"].sort(),
     );
+    expect(Object.getPrototypeOf(record.tags)).toBe(Array.prototype);
   });
 
   it("reports a duplicate name as DuplicateKeyError", async () => {
@@ -175,5 +176,70 @@ describe("create in a Mongo record store", () => {
     mockCounter(counterRace, counterRace, counterRace);
 
     await expect(mongoStores.materials.create(fields)).rejects.toBe(counterRace);
+  });
+});
+
+describe("materials from before description and tags", () => {
+  const stored = { _id: "guid", number: 1, name: "Alt", unit: "Liter" };
+
+  function mockFindById(doc: unknown) {
+    vi.spyOn(MaterialModel, "findById").mockReturnValue({
+      exec: () => Promise.resolve(doc),
+    } as never);
+  }
+
+  function expectPlainDefaults(record: { description: string; tags: string[] } | null) {
+    expect(record?.description).toBe("");
+    expect(record?.tags).toEqual([]);
+    expect(Object.getPrototypeOf(record?.tags)).toBe(Array.prototype);
+  }
+
+  it("reads the defaults from a raw document without the fields", async () => {
+    mockFindById(stored);
+
+    expectPlainDefaults(await mongoStores.materials.findById("guid"));
+  });
+
+  it("reads the defaults from a hydrated document", async () => {
+    mockFindById(MaterialModel.hydrate(stored));
+
+    expectPlainDefaults(await mongoStores.materials.findById("guid"));
+  });
+
+  it("reads the defaults in the list", async () => {
+    vi.spyOn(MaterialModel, "find").mockReturnValue({
+      sort: () => ({ exec: () => Promise.resolve([MaterialModel.hydrate(stored)]) }),
+    } as never);
+
+    const [record] = await mongoStores.materials.list();
+
+    expectPlainDefaults(record ?? null);
+  });
+
+  it("passes validation and keeps the list empty after a patch of the description alone", async () => {
+    const doc = MaterialModel.hydrate(stored);
+    mockFindById(doc);
+    const save = vi.spyOn(MaterialModel.prototype, "save").mockResolvedValue(undefined as never);
+
+    const record = await mongoStores.materials.update("guid", { description: "Neu" });
+
+    await expect(doc.validate()).resolves.toBeUndefined();
+    expect(save).toHaveBeenCalledOnce();
+    expect(record).toMatchObject({ name: "Alt", unit: "Liter", description: "Neu", tags: [] });
+  });
+
+  it("returns a plain array that shares nothing after a patch of the tags", async () => {
+    const doc = MaterialModel.hydrate(stored);
+    mockFindById(doc);
+    vi.spyOn(MaterialModel.prototype, "save").mockResolvedValue(undefined as never);
+    const tags = ["a", "b"];
+
+    const record = await mongoStores.materials.update("guid", { tags });
+    tags.push("c");
+    record?.tags.push("d");
+
+    expect(record?.tags).toEqual(["a", "b", "d"]);
+    expect(Object.getPrototypeOf(record?.tags)).toBe(Array.prototype);
+    expect([...doc.tags]).toEqual(["a", "b"]);
   });
 });

@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import type {
   MaterialFields,
   MovementFields,
@@ -104,12 +105,18 @@ function createMemoryOidcSettingsStore(): OidcSettingsStore {
 }
 
 // Behaves like the Mongo store: the counter advances even if the unique key then rejects the
-// record, it survives deletions, and updatedAt only moves on a real change.
+// record, it survives deletions, and updatedAt only moves on a real change. withDefaults fills in
+// fields a stored record may lack, as the Mongo store does for older documents. Everything going in
+// or out is copied, so that no caller shares an array with the store.
 function createMemoryRecordStore<Fields extends object>(
   uniqueField?: keyof Fields,
+  withDefaults: (fields: Fields) => Fields = (fields) => fields,
 ): RecordStore<Fields> {
   const records = new Map<string, StoredRecord<Fields>>();
   let counter = 0;
+
+  const read = (record: StoredRecord<Fields>): StoredRecord<Fields> =>
+    structuredClone({ ...record, ...withDefaults(record) });
 
   function assertFree(id: string, fields: Fields): void {
     if (uniqueField === undefined) return;
@@ -120,19 +127,16 @@ function createMemoryRecordStore<Fields extends object>(
   }
 
   return {
-    list: async () =>
-      [...records.values()]
-        .sort((a, b) => a.number - b.number)
-        .map((record) => structuredClone(record)),
+    list: async () => [...records.values()].sort((a, b) => a.number - b.number).map(read),
     async findById(id) {
       const record = records.get(id);
-      return record ? structuredClone(record) : null;
+      return record ? read(record) : null;
     },
     async create(fields) {
       counter += 1;
       const now = new Date();
       const record: StoredRecord<Fields> = {
-        ...fields,
+        ...structuredClone(fields),
         id: randomUUID(),
         number: counter,
         createdAt: now,
@@ -140,18 +144,19 @@ function createMemoryRecordStore<Fields extends object>(
       };
       assertFree(record.id, fields);
       records.set(record.id, record);
-      return structuredClone(record);
+      return read(record);
     },
     async update(id, patch) {
-      const existing = records.get(id);
-      if (!existing) return null;
+      const stored = records.get(id);
+      if (!stored) return null;
+      const existing = read(stored);
       const changed = (Object.keys(patch) as (keyof Fields)[]).some(
-        (key) => patch[key] !== existing[key],
+        (key) => !isDeepStrictEqual(patch[key], existing[key]),
       );
-      if (!changed) return structuredClone(existing);
+      if (!changed) return existing;
       const updated: StoredRecord<Fields> = {
         ...existing,
-        ...patch,
+        ...structuredClone(patch),
         id: existing.id,
         number: existing.number,
         createdAt: existing.createdAt,
@@ -159,7 +164,7 @@ function createMemoryRecordStore<Fields extends object>(
       };
       assertFree(id, updated);
       records.set(id, updated);
-      return structuredClone(updated);
+      return read(updated);
     },
     delete: async (id) => records.delete(id),
   };
@@ -179,7 +184,11 @@ export function createMemoryStores() {
     users: createMemoryUserStore(),
     sessions: createMemorySessionStore(),
     oidcSettings: createMemoryOidcSettingsStore(),
-    materials: createMemoryRecordStore<MaterialFields>("name"),
+    materials: createMemoryRecordStore<MaterialFields>("name", (fields) => ({
+      ...fields,
+      description: fields.description ?? "",
+      tags: fields.tags ?? [],
+    })),
     storageLocations: createMemoryRecordStore<StorageLocationFields>("name"),
     consumptions: createMemoryMovementStore(),
     orders: createMemoryMovementStore(),
