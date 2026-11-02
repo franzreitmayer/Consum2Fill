@@ -65,6 +65,7 @@ export function createOidcRouter(context: RouteContext): Router {
     standardHeaders: "draft-7",
     legacyHeaders: false,
     handler: (_req, res) => {
+      console.warn("OIDC login rate limit exceeded");
       res.redirect(302, FAILURE_REDIRECT);
     },
   });

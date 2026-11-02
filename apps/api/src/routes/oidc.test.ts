@@ -423,12 +423,26 @@ describe("OIDC login", () => {
   });
 
   describe("limit", () => {
+    beforeEach(() => {
+      vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    });
+
     async function useUpLimit(app: Context["app"]) {
       for (let attempt = 0; attempt < 20; attempt += 1) {
         const res = await request(app).get(API_PATHS.oidcLogin);
         expect(res.headers.location).toBe(`${TEST_ISSUER}/auth`);
       }
     }
+
+    it("logs a warning without client data only when the limit is exceeded", async () => {
+      await enableOidc(context);
+      await useUpLimit(context.app);
+      expect(console.warn).not.toHaveBeenCalled();
+
+      await request(context.app).get(API_PATHS.oidcLogin).set("X-Forwarded-For", "203.0.113.9");
+
+      expect(vi.mocked(console.warn).mock.calls).toEqual([["OIDC login rate limit exceeded"]]);
+    });
 
     it("redirects to the failure page after 20 requests without asking the provider", async () => {
       await enableOidc(context);

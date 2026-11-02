@@ -91,6 +91,7 @@ export function createApp({
       stores.sessions,
     ),
     domainLock: createMutex(),
+    credentialLock: createMutex(),
   };
 
   // Ahead of the parser below: these routers parse the body themselves, after their guards.

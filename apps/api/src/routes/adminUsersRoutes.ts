@@ -24,7 +24,7 @@ async function mapUsernameTaken<T>(write: () => Promise<T>): Promise<T> {
   }
 }
 
-export function createAdminUsersRouter({ stores }: RouteContext): Router {
+export function createAdminUsersRouter({ stores, credentialLock }: RouteContext): Router {
   const { users, sessions } = stores;
   const router = Router();
   // Two admins acting at once must not be able to remove each other
@@ -33,6 +33,14 @@ export function createAdminUsersRouter({ stores }: RouteContext): Router {
   async function findUser(id: string): Promise<StoredUser> {
     const user = await users.findById(id);
     if (!user) throw new HttpError(404, NOT_FOUND_MESSAGE);
+    return user;
+  }
+
+  async function findLocalUser(id: string): Promise<StoredUser> {
+    const user = await findUser(id);
+    if (user.source !== "local") {
+      throw new HttpError(409, "IAM-Benutzer haben kein lokales Passwort.");
+    }
     return user;
   }
 
@@ -87,15 +95,14 @@ export function createAdminUsersRouter({ stores }: RouteContext): Router {
 
   router.put(USER_PASSWORD_PATH, async (req, res) => {
     const password = parsePassword(req.body);
-    const user = await findUser(req.params.id);
-    if (user.source !== "local") {
-      throw new HttpError(409, "IAM-Benutzer haben kein lokales Passwort.");
-    }
-    await users.update(user.id, {
-      passwordHash: await hashPassword(password),
-      mustChangePassword: false,
+    await findLocalUser(req.params.id);
+    const passwordHash = await hashPassword(password);
+    await credentialLock(async () => {
+      const user = await findLocalUser(req.params.id);
+      const updated = await users.update(user.id, { passwordHash, mustChangePassword: false });
+      if (!updated) throw new HttpError(404, NOT_FOUND_MESSAGE);
+      await sessions.deleteByUser(user.id);
     });
-    await sessions.deleteByUser(user.id);
     res.status(204).end();
   });
 

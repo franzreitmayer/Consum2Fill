@@ -22,4 +22,8 @@ Der Erstbenutzer `admin` muss sein Passwort nach der ersten Anmeldung ändern, b
 
 **Risiko:** Wer ein Startpasswort vor dem Berechtigten kennt, kann das Konto weiterhin übernehmen, indem er die Änderung zuerst ausführt. Das schließt erst eine Einrichtung ohne Startpasswörter.
 
+Die Startkonten werden über den Benutzernamen gefunden. Ein in einer bestehenden Datenbank umbenanntes Startkonto mit Startpasswort wird nicht erfasst. Eine bereits geöffnete Oberfläche zeigt nach dem Setzen der Sperre Fehlermeldungen und wechselt erst nach dem Neuladen zum Änderungsbildschirm. Schlägt beim Passwortwechsel das Beenden der Sitzungen fehl, ist das Passwort geändert, der Client erhält aber einen Fehler, und alte Sitzungen können bestehen bleiben.
+
+Passwortänderungen und das Anlegen von Sitzungen beim lokalen Login laufen über eine gemeinsame Sperre im Prozess und prüfen darin den aktuellen Hash. Das schützt wie in ADR 0004 nur bei einer App-Instanz.
+
 Die Limits und der Fehlerspeicher liegen im Prozess und gelten je App-Instanz. Die Prüfung der Startkonten kostet bei jedem Start bis zu drei `scrypt`-Berechnungen.
