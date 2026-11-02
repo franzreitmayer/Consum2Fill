@@ -11,3 +11,4 @@ Reihenfolge nach Priorität. Der Status steht nur in der jeweiligen Task-Datei. 
 7. T-007: `.claude`-Commands, -Agents und den Format-Hook auf Hosts ohne pnpm nutzbar machen (`make docker-check`, Prettier im Container)
 8. T-008: Anmeldung und Authentifizierung
 9. T-009: Anmeldung härten: Limit und Fehler-Cache für `/api/auth/oidc/login`, 401 vor der JSON-Prüfung unter `/api/admin`, Sicherheitsheader, Ablösen der Startpasswörter erzwingen
+10. T-010: Hauptmenü Stammdaten mit Lagerorten
