@@ -9,11 +9,14 @@ import express, { type Express } from "express";
 import { createSecretBox } from "./auth/secretBox.js";
 import { createRequireSession, requireAdmin } from "./auth/sessions.js";
 import { apiErrorHandler } from "./http/errors.js";
+import { createMutex } from "./http/mutex.js";
 import type { OidcClientPort } from "./oidc/oidcClient.js";
 import { createAdminOidcSettingsRouter } from "./routes/adminOidcSettingsRoutes.js";
 import { createAdminUsersRouter } from "./routes/adminUsersRoutes.js";
 import { createAuthRouter } from "./routes/authRoutes.js";
 import type { RouteContext } from "./routes/context.js";
+import { createMasterDataRouter } from "./routes/masterDataRoutes.js";
+import { createMovementRouter } from "./routes/movementRoutes.js";
 import { createOidcRouter } from "./routes/oidcRoutes.js";
 import type { Stores } from "./stores/types.js";
 
@@ -50,6 +53,7 @@ export function createApp({
     publicUrl,
     secureCookies,
     requireSession,
+    domainLock: createMutex(),
   };
 
   app.use("/api", express.json());
@@ -74,6 +78,9 @@ export function createApp({
   app.use("/api/admin", requireSession, requireAdmin);
   app.use(createAdminUsersRouter(context));
   app.use(createAdminOidcSettingsRouter(context));
+
+  app.use(createMasterDataRouter(context));
+  app.use(createMovementRouter(context));
 
   app.use("/api", (_req, res) => {
     const body: ErrorResponse = { message: "Not found" };

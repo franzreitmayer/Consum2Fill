@@ -1,4 +1,4 @@
-import type { Role, User } from "@c2r/shared";
+import type { Material, Movement, Role, StorageLocation, User } from "@c2r/shared";
 
 export interface StoredUser extends User {
   passwordHash: string | null;
@@ -34,7 +34,7 @@ export interface UserPatch {
   passwordHash?: string;
 }
 
-// Thrown by user stores for a username or OIDC identity that already exists
+// Thrown by stores for a username, OIDC identity or record name that already exists
 export class DuplicateKeyError extends Error {
   constructor() {
     super("Duplicate key");
@@ -80,8 +80,39 @@ export interface OidcSettingsStore {
   save(settings: StoredOidcSettings): Promise<void>;
 }
 
+export type MaterialFields = Pick<Material, "name" | "unit">;
+export type StorageLocationFields = Pick<StorageLocation, "name">;
+export type MovementFields = Pick<Movement, "storageLocationId" | "materialId" | "quantity">;
+
+// id and number are assigned by the store, createdAt and updatedAt maintained by it
+export type StoredRecord<Fields extends object> = Fields & {
+  id: string;
+  number: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export interface RecordStore<Fields extends object> {
+  // Ascending by number
+  list(): Promise<StoredRecord<Fields>[]>;
+  findById(id: string): Promise<StoredRecord<Fields> | null>;
+  create(fields: Fields): Promise<StoredRecord<Fields>>;
+  update(id: string, patch: Partial<Fields>): Promise<StoredRecord<Fields> | null>;
+  delete(id: string): Promise<boolean>;
+}
+
+export type MovementReference = "storageLocationId" | "materialId";
+
+export interface MovementStore extends RecordStore<MovementFields> {
+  countByReference(reference: MovementReference, id: string): Promise<number>;
+}
+
 export interface Stores {
   users: UserStore;
   sessions: SessionStore;
   oidcSettings: OidcSettingsStore;
+  materials: RecordStore<MaterialFields>;
+  storageLocations: RecordStore<StorageLocationFields>;
+  consumptions: MovementStore;
+  orders: MovementStore;
 }

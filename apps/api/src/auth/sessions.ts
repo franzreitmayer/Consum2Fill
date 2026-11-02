@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import type { Role } from "@c2r/shared";
 import type { CookieOptions, Request, RequestHandler, Response } from "express";
 import { readCookie } from "../http/cookies.js";
 import { HttpError } from "../http/errors.js";
@@ -66,3 +67,11 @@ export const requireAdmin: RequestHandler = (_req, res, next) => {
   if (currentUser(res).role !== "ADMIN") throw new HttpError(403, "Keine Berechtigung.");
   next();
 };
+
+// Runs after the session guard, so that a missing session stays a 401
+export function requireRole(...roles: readonly Role[]): RequestHandler {
+  return (_req, res, next) => {
+    if (!roles.includes(currentUser(res).role)) throw new HttpError(403, "Keine Berechtigung.");
+    next();
+  };
+}

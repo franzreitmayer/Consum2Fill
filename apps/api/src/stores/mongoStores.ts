@@ -1,8 +1,27 @@
-import mongoose from "mongoose";
+import mongoose, { type HydratedDocument, type Model } from "mongoose";
+import { ConsumptionModel } from "../models/consumption.js";
+import { CounterModel } from "../models/counter.js";
+import { MaterialModel, type MaterialDocument } from "../models/material.js";
+import type { MovementDocument } from "../models/movement.js";
 import { OIDC_SETTINGS_ID, OidcSettingsModel } from "../models/oidcSettings.js";
+import { OrderModel } from "../models/order.js";
+import type { RecordDocument } from "../models/record.js";
 import { SessionModel } from "../models/session.js";
+import { StorageLocationModel, type StorageLocationDocument } from "../models/storageLocation.js";
 import { UserModel, type UserFields } from "../models/user.js";
-import type { OidcSettingsStore, SessionStore, StoredUser, Stores, UserStore } from "./types.js";
+import type {
+  MaterialFields,
+  MovementFields,
+  MovementStore,
+  OidcSettingsStore,
+  RecordStore,
+  SessionStore,
+  StorageLocationFields,
+  StoredRecord,
+  StoredUser,
+  Stores,
+  UserStore,
+} from "./types.js";
 import { DuplicateKeyError } from "./types.js";
 
 const { isObjectIdOrHexString } = mongoose;
@@ -113,13 +132,140 @@ const mongoOidcSettingsStore: OidcSettingsStore = {
   },
 };
 
+const COUNTER_ATTEMPTS = 3;
+
+// Two first-time upserts can both try to insert the counter document. The loser fails with a
+// duplicate key on the counter, and its next attempt finds the document and increments it. This
+// error stays apart from the name check in create(), so it cannot look like a taken name.
+export async function nextRecordNumber(entity: string): Promise<number> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const counter = await CounterModel.findOneAndUpdate(
+        { _id: entity },
+        { $inc: { value: 1 } },
+        { upsert: true, returnDocument: "after" },
+      ).exec();
+      return counter.value;
+    } catch (err) {
+      if (!isMongoDuplicateKeyError(err) || attempt >= COUNTER_ATTEMPTS) throw err;
+    }
+  }
+}
+
+// A collision on the number or the id is a server fault and must not read as a taken name.
+function isDuplicateOfField(err: unknown, field: string): boolean {
+  if (!isMongoDuplicateKeyError(err)) return false;
+  const { keyPattern } = err as { keyPattern?: Record<string, unknown> };
+  return keyPattern?.[field] !== undefined;
+}
+
+interface MongoRecordOptions<Fields extends object> {
+  // Key of the counter document
+  entity: string;
+  uniqueField?: keyof Fields & string;
+  toFields: (doc: Fields) => Fields;
+}
+
+function createMongoRecordStore<Doc extends RecordDocument & Fields, Fields extends object>(
+  model: Model<Doc>,
+  { entity, uniqueField, toFields }: MongoRecordOptions<Fields>,
+): RecordStore<Fields> {
+  function toRecord(doc: HydratedDocument<Doc>): StoredRecord<Fields> {
+    // Mongoose's hydrated type cannot be resolved for a generic Doc
+    const fields = doc as unknown as Doc;
+    return {
+      ...toFields(fields),
+      id: fields._id,
+      number: fields.number,
+      createdAt: fields.createdAt,
+      updatedAt: fields.updatedAt,
+    };
+  }
+
+  async function saveMappingName(doc: HydratedDocument<Doc>): Promise<void> {
+    try {
+      await doc.save();
+    } catch (err) {
+      throw uniqueField !== undefined && isDuplicateOfField(err, uniqueField)
+        ? new DuplicateKeyError()
+        : err;
+    }
+  }
+
+  return {
+    async list() {
+      const docs = await model.find().sort({ number: 1 }).exec();
+      return docs.map(toRecord);
+    },
+    async findById(id) {
+      const doc = await model.findById(id).exec();
+      return doc && toRecord(doc);
+    },
+    async create(fields) {
+      const number = await nextRecordNumber(entity);
+      const doc = new model({ ...fields, number });
+      await saveMappingName(doc);
+      return toRecord(doc);
+    },
+    async update(id, patch) {
+      const doc = await model.findById(id).exec();
+      if (!doc) return null;
+      // save() instead of an update query, so that the schema validators see the whole document
+      doc.set(patch);
+      await saveMappingName(doc);
+      return toRecord(doc);
+    },
+    async delete(id) {
+      return (await model.findByIdAndDelete(id).exec()) !== null;
+    },
+  };
+}
+
+function toMovementFields(doc: MovementFields): MovementFields {
+  return {
+    storageLocationId: doc.storageLocationId,
+    materialId: doc.materialId,
+    quantity: doc.quantity,
+  };
+}
+
+function createMongoMovementStore(model: Model<MovementDocument>, entity: string): MovementStore {
+  return {
+    ...createMongoRecordStore<MovementDocument, MovementFields>(model, {
+      entity,
+      toFields: toMovementFields,
+    }),
+    countByReference: (reference, id) => model.countDocuments({ [reference]: id }).exec(),
+  };
+}
+
 export const mongoStores: Stores = {
   users: mongoUserStore,
   sessions: mongoSessionStore,
   oidcSettings: mongoOidcSettingsStore,
+  materials: createMongoRecordStore<MaterialDocument, MaterialFields>(MaterialModel, {
+    entity: "materials",
+    uniqueField: "name",
+    toFields: ({ name, unit }) => ({ name, unit }),
+  }),
+  storageLocations: createMongoRecordStore<StorageLocationDocument, StorageLocationFields>(
+    StorageLocationModel,
+    { entity: "storageLocations", uniqueField: "name", toFields: ({ name }) => ({ name }) },
+  ),
+  consumptions: createMongoMovementStore(ConsumptionModel, "consumptions"),
+  orders: createMongoMovementStore(OrderModel, "orders"),
 };
 
 // Waits for the unique and TTL indexes, so that they hold from the first write on.
 export async function ensureMongoIndexes(): Promise<void> {
-  await Promise.all([UserModel.init(), SessionModel.init(), OidcSettingsModel.init()]);
+  await Promise.all([
+    UserModel.init(),
+    SessionModel.init(),
+    OidcSettingsModel.init(),
+    MaterialModel.init(),
+    StorageLocationModel.init(),
+    ConsumptionModel.init(),
+    OrderModel.init(),
+    CounterModel.init(),
+  ]);
 }

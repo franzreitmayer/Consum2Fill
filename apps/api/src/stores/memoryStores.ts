@@ -1,8 +1,14 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type {
+  MaterialFields,
+  MovementFields,
+  MovementStore,
   OidcSettingsStore,
+  RecordStore,
   SessionStore,
+  StorageLocationFields,
   StoredOidcSettings,
+  StoredRecord,
   StoredSession,
   StoredUser,
   Stores,
@@ -96,10 +102,85 @@ function createMemoryOidcSettingsStore(): OidcSettingsStore {
   };
 }
 
+// Behaves like the Mongo store: the counter advances even if the unique key then rejects the
+// record, it survives deletions, and updatedAt only moves on a real change.
+function createMemoryRecordStore<Fields extends object>(
+  uniqueField?: keyof Fields,
+): RecordStore<Fields> {
+  const records = new Map<string, StoredRecord<Fields>>();
+  let counter = 0;
+
+  function assertFree(id: string, fields: Fields): void {
+    if (uniqueField === undefined) return;
+    const taken = [...records.values()].some(
+      (record) => record.id !== id && record[uniqueField] === fields[uniqueField],
+    );
+    if (taken) throw new DuplicateKeyError();
+  }
+
+  return {
+    list: async () =>
+      [...records.values()]
+        .sort((a, b) => a.number - b.number)
+        .map((record) => structuredClone(record)),
+    async findById(id) {
+      const record = records.get(id);
+      return record ? structuredClone(record) : null;
+    },
+    async create(fields) {
+      counter += 1;
+      const now = new Date();
+      const record: StoredRecord<Fields> = {
+        ...fields,
+        id: randomUUID(),
+        number: counter,
+        createdAt: now,
+        updatedAt: now,
+      };
+      assertFree(record.id, fields);
+      records.set(record.id, record);
+      return structuredClone(record);
+    },
+    async update(id, patch) {
+      const existing = records.get(id);
+      if (!existing) return null;
+      const changed = (Object.keys(patch) as (keyof Fields)[]).some(
+        (key) => patch[key] !== existing[key],
+      );
+      if (!changed) return structuredClone(existing);
+      const updated: StoredRecord<Fields> = {
+        ...existing,
+        ...patch,
+        id: existing.id,
+        number: existing.number,
+        createdAt: existing.createdAt,
+        updatedAt: new Date(),
+      };
+      assertFree(id, updated);
+      records.set(id, updated);
+      return structuredClone(updated);
+    },
+    delete: async (id) => records.delete(id),
+  };
+}
+
+function createMemoryMovementStore(): MovementStore {
+  const store = createMemoryRecordStore<MovementFields>();
+  return {
+    ...store,
+    countByReference: async (reference, id) =>
+      (await store.list()).filter((record) => record[reference] === id).length,
+  };
+}
+
 export function createMemoryStores() {
   return {
     users: createMemoryUserStore(),
     sessions: createMemorySessionStore(),
     oidcSettings: createMemoryOidcSettingsStore(),
+    materials: createMemoryRecordStore<MaterialFields>("name"),
+    storageLocations: createMemoryRecordStore<StorageLocationFields>("name"),
+    consumptions: createMemoryMovementStore(),
+    orders: createMemoryMovementStore(),
   } satisfies Stores;
 }

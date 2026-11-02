@@ -1,10 +1,16 @@
 import {
+  DEFAULT_UNIT,
   MIN_PASSWORD_LENGTH,
   ROLES,
+  type CreateMovementRequest,
+  type CreateStorageLocationRequest,
   type CreateUserRequest,
   type LoginRequest,
   type Role,
+  type UpdateMaterialRequest,
+  type UpdateMovementRequest,
   type UpdateOidcSettingsRequest,
+  type UpdateStorageLocationRequest,
   type UpdateUserRequest,
 } from "@c2r/shared";
 import { HttpError } from "../http/errors.js";
@@ -87,6 +93,83 @@ export function parseUpdateUser(value: unknown): UpdateUserRequest {
   if (body.email !== undefined) patch.email = parseEmail(body.email);
   if (body.role !== undefined) patch.role = parseRole(body.role);
   if (Object.keys(patch).length === 0) throw badRequest("Es wurde keine Änderung angegeben.");
+  return patch;
+}
+
+const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Returns the stored spelling: a GUID may be written in upper case, ids are kept in lower case.
+export function parseGuid(value: unknown): string | null {
+  return typeof value === "string" && GUID_PATTERN.test(value) ? value.toLowerCase() : null;
+}
+
+function parseReference(value: unknown, label: string): string {
+  const id = parseGuid(value);
+  if (id === null) throw badRequest(`${label} muss eine GUID sein.`);
+  return id;
+}
+
+function parseQuantity(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    throw badRequest("Die Menge muss eine Zahl größer 0 sein.");
+  }
+  return value;
+}
+
+function assertHasChanges(patch: object): void {
+  if (Object.keys(patch).length === 0) throw badRequest("Es wurde keine Änderung angegeben.");
+}
+
+export function parseCreateMaterial(value: unknown): { name: string; unit: string } {
+  const body = parseBody(value);
+  return {
+    name: parseRequiredText(body.name, "Der Name"),
+    unit:
+      body.unit === undefined ? DEFAULT_UNIT : parseRequiredText(body.unit, "Die Mengeneinheit"),
+  };
+}
+
+export function parseUpdateMaterial(value: unknown): UpdateMaterialRequest {
+  const body = parseBody(value);
+  const patch: UpdateMaterialRequest = {};
+  if (body.name !== undefined) patch.name = parseRequiredText(body.name, "Der Name");
+  if (body.unit !== undefined) patch.unit = parseRequiredText(body.unit, "Die Mengeneinheit");
+  assertHasChanges(patch);
+  return patch;
+}
+
+export function parseCreateStorageLocation(value: unknown): CreateStorageLocationRequest {
+  return { name: parseRequiredText(parseBody(value).name, "Der Name") };
+}
+
+export function parseUpdateStorageLocation(value: unknown): UpdateStorageLocationRequest {
+  const body = parseBody(value);
+  const patch: UpdateStorageLocationRequest = {};
+  if (body.name !== undefined) patch.name = parseRequiredText(body.name, "Der Name");
+  assertHasChanges(patch);
+  return patch;
+}
+
+export function parseCreateMovement(value: unknown): CreateMovementRequest {
+  const body = parseBody(value);
+  return {
+    storageLocationId: parseReference(body.storageLocationId, "Der Lagerort"),
+    materialId: parseReference(body.materialId, "Das Material"),
+    quantity: parseQuantity(body.quantity),
+  };
+}
+
+export function parseUpdateMovement(value: unknown): UpdateMovementRequest {
+  const body = parseBody(value);
+  const patch: UpdateMovementRequest = {};
+  if (body.storageLocationId !== undefined) {
+    patch.storageLocationId = parseReference(body.storageLocationId, "Der Lagerort");
+  }
+  if (body.materialId !== undefined) {
+    patch.materialId = parseReference(body.materialId, "Das Material");
+  }
+  if (body.quantity !== undefined) patch.quantity = parseQuantity(body.quantity);
+  assertHasChanges(patch);
   return patch;
 }
 
