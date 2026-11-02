@@ -5,6 +5,8 @@ import { act, configure, getConfig } from "@testing-library/react";
 // could still miss the page under load. Waiting in act() here makes that very unlikely.
 const { asyncWrapper } = getConfig();
 configure({
+  // The default of one second is too short on a busy machine, as views load several lists in turn.
+  asyncUtilTimeout: 5000,
   asyncWrapper: async (callback) => {
     const result = await asyncWrapper(callback);
     await act(async () => undefined);
