@@ -1,5 +1,5 @@
 import { createApp } from "./app.js";
-import { seedDefaultUsers } from "./auth/seed.js";
+import { flagDefaultPasswords, seedDefaultUsers } from "./auth/seed.js";
 import { loadConfig } from "./config.js";
 import { connectDb, disconnectDb, isDbConnected } from "./db.js";
 import { createOpenIdClient } from "./oidc/oidcClient.js";
@@ -10,6 +10,7 @@ const config = loadConfig();
 await connectDb(config.mongoUri);
 await ensureMongoIndexes();
 await seedDefaultUsers(mongoStores.users);
+await flagDefaultPasswords(mongoStores.users);
 
 const app = createApp({
   isDbConnected,

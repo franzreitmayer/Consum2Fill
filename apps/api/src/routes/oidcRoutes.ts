@@ -1,5 +1,6 @@
 import { API_PATHS } from "@c2r/shared";
 import { Router, type Request, type Response } from "express";
+import { rateLimit } from "express-rate-limit";
 import { startSession } from "../auth/sessions.js";
 import { readCookie } from "../http/cookies.js";
 import type { OidcConnection } from "../oidc/oidcClient.js";
@@ -11,6 +12,8 @@ export const OIDC_STATE_COOKIE = "c2r_oidc";
 const OIDC_STATE_TTL_MS = 10 * 60 * 1000;
 const OIDC_COOKIE_PATH = "/api/auth/oidc";
 const FAILURE_REDIRECT = "/?loginError=oidc";
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_REQUESTS = 20;
 
 interface LoginState {
   state: string;
@@ -55,7 +58,18 @@ export function createOidcRouter(context: RouteContext): Router {
     res.redirect(302, FAILURE_REDIRECT);
   }
 
-  router.get(API_PATHS.oidcLogin, async (req, res) => {
+  // A browser navigation, so that the client gets the usual redirect instead of a JSON error
+  const loginLimiter = rateLimit({
+    windowMs: LOGIN_WINDOW_MS,
+    limit: LOGIN_MAX_REQUESTS,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    handler: (_req, res) => {
+      res.redirect(302, FAILURE_REDIRECT);
+    },
+  });
+
+  router.get(API_PATHS.oidcLogin, loginLimiter, async (req, res) => {
     try {
       const redirectUri = buildRedirectUri(req, publicUrl);
       const { url, state, nonce, codeVerifier } = await oidcClient.startAuthorization(

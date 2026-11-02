@@ -61,6 +61,20 @@ describe.each(ALL_PATHS)("%s without a session", (path) => {
     expect(tooLarge.status).toBe(401);
   });
 
+  it("answers 401 for an unknown charset and on PATCH", async () => {
+    const charset = await request(context.app)
+      .post(path)
+      .set("Content-Type", "application/json; charset=foo")
+      .send("{}");
+    const patch = await request(context.app)
+      .patch(`${path}/${UNKNOWN_ID}`)
+      .set("Content-Type", "application/json")
+      .send("{broken");
+
+    expect(charset.status).toBe(401);
+    expect(patch.status).toBe(401);
+  });
+
   it("writes nothing", async () => {
     await request(context.app).post(path).send({ name: "Neu" });
 
@@ -121,6 +135,22 @@ describe("roles", () => {
       expect(res.status).toBe(403);
     });
 
+    it("answers 403 for an unknown charset, a body too large and on PATCH", async () => {
+      const charset = await user
+        .post(path)
+        .set("Content-Type", "application/json; charset=foo")
+        .send("{}");
+      const tooLarge = await user.post(path).send({ name: "x".repeat(200 * 1024) });
+      const patch = await user
+        .patch(`${path}/${UNKNOWN_ID}`)
+        .set("Content-Type", "application/json")
+        .send("{broken");
+
+      expect(charset.status).toBe(403);
+      expect(tooLarge.status).toBe(403);
+      expect(patch.status).toBe(403);
+    });
+
     it("can read", async () => {
       const existing = await admin.post(path).send(validBody(path));
 
@@ -174,6 +204,22 @@ describe("roles", () => {
       expect(res.body.message).toEqual(expect.any(String));
     },
   );
+
+  it.each(ALL_PATHS)("reports parser errors on %s when allowed to write", async (path) => {
+    const charset = await admin
+      .post(path)
+      .set("Content-Type", "application/json; charset=foo")
+      .send("{}");
+    const tooLarge = await admin.post(path).send({ name: "x".repeat(200 * 1024) });
+    const patch = await admin
+      .patch(`${path}/${UNKNOWN_ID}`)
+      .set("Content-Type", "application/json")
+      .send("{broken");
+
+    expect(charset.status).toBe(415);
+    expect(tooLarge.status).toBe(413);
+    expect(patch.status).toBe(400);
+  });
 
   it.each(["\u0000", "\ud800"])("rejects the character %j in a name", async (character) => {
     const res = await admin.post(API_PATHS.materials).send({ name: `x${character}` });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createOpenIdClient, type OidcConnection } from "./oidcClient.js";
 
 const REDIRECT_URI = "http://refill.test/api/auth/oidc/callback";
@@ -165,5 +165,89 @@ describe("createOpenIdClient", () => {
     client.reset();
     await client.startAuthorization(connection, REDIRECT_URI);
     expect(discoveries()).toBe(2);
+  });
+
+  describe("failed discovery", () => {
+    // Fails on the network until told otherwise; only Date is faked, crypto still needs real timers
+    function createFailingProvider() {
+      const provider = createProvider(issuer);
+      const state = { failing: true, requests: 0 };
+      const client = createOpenIdClient(async (url, init) => {
+        state.requests += 1;
+        if (state.failing) throw new Error("provider down");
+        return provider.fetch(String(url), init as { body?: unknown });
+      });
+      return { state, client };
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("repeats the failure for 30 seconds without asking again", async () => {
+      const { state, client } = createFailingProvider();
+      const connection = connectionFor(issuer);
+
+      const failure = await client.startAuthorization(connection, REDIRECT_URI).catch((e) => e);
+      expect(failure).toBeInstanceOf(Error);
+      expect(state.requests).toBe(1);
+
+      vi.advanceTimersByTime(29_000);
+      await expect(client.startAuthorization(connection, REDIRECT_URI)).rejects.toBe(failure);
+      expect(state.requests).toBe(1);
+
+      vi.advanceTimersByTime(2_000);
+      state.failing = false;
+      await client.startAuthorization(connection, REDIRECT_URI);
+      expect(state.requests).toBe(2);
+    });
+
+    it("also applies to the callback", async () => {
+      const { state, client } = createFailingProvider();
+      const connection = connectionFor(issuer);
+      await expect(client.startAuthorization(connection, REDIRECT_URI)).rejects.toBeDefined();
+
+      await expect(
+        client.finishAuthorization(connection, {
+          currentUrl: new URL(REDIRECT_URI),
+          redirectUri: REDIRECT_URI,
+          state: "state",
+          nonce: "nonce",
+          codeVerifier: "verifier",
+        }),
+      ).rejects.toBeDefined();
+
+      expect(state.requests).toBe(1);
+    });
+
+    it("keeps the failure per connection", async () => {
+      const { state, client } = createFailingProvider();
+      const first = connectionFor(issuer);
+      const second = connectionFor("https://other.example/realms/test");
+
+      await expect(client.startAuthorization(first, REDIRECT_URI)).rejects.toBeDefined();
+      await expect(client.startAuthorization(second, REDIRECT_URI)).rejects.toBeDefined();
+      expect(state.requests).toBe(2);
+
+      await expect(client.startAuthorization(first, REDIRECT_URI)).rejects.toBeDefined();
+      await expect(client.startAuthorization(second, REDIRECT_URI)).rejects.toBeDefined();
+      expect(state.requests).toBe(2);
+    });
+
+    it("forgets the failure on reset", async () => {
+      const { state, client } = createFailingProvider();
+      const connection = connectionFor(issuer);
+      await expect(client.startAuthorization(connection, REDIRECT_URI)).rejects.toBeDefined();
+
+      client.reset();
+      state.failing = false;
+
+      await expect(client.startAuthorization(connection, REDIRECT_URI)).resolves.toBeDefined();
+      expect(state.requests).toBe(2);
+    });
   });
 });

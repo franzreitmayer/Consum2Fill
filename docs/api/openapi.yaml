@@ -23,6 +23,8 @@ paths:
                 $ref: "#/components/schemas/HelloResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /api/health:
     get:
       operationId: getHealth
@@ -319,6 +321,8 @@ paths:
                   $ref: "#/components/schemas/Material"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     post:
       operationId: createMaterial
       summary: Legt Material an. Schreibrecht haben ADMIN und MANAGER.
@@ -358,6 +362,8 @@ paths:
                 $ref: "#/components/schemas/Material"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
     patch:
@@ -416,6 +422,8 @@ paths:
                   $ref: "#/components/schemas/StorageLocation"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     post:
       operationId: createStorageLocation
       summary: Legt Lagerort an. Schreibrecht haben ADMIN und MANAGER.
@@ -455,6 +463,8 @@ paths:
                 $ref: "#/components/schemas/StorageLocation"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
     patch:
@@ -513,6 +523,8 @@ paths:
                   $ref: "#/components/schemas/Movement"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     post:
       operationId: createConsumption
       summary: Legt Verbrauch an. Schreibrecht haben alle Angemeldeten.
@@ -533,6 +545,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /api/consumptions/{id}:
     parameters:
       - $ref: "#/components/parameters/RecordId"
@@ -548,6 +562,8 @@ paths:
                 $ref: "#/components/schemas/Movement"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
     patch:
@@ -570,6 +586,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
@@ -581,6 +599,8 @@ paths:
           description: Gelöscht
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
   /api/orders:
@@ -598,6 +618,8 @@ paths:
                   $ref: "#/components/schemas/Movement"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     post:
       operationId: createOrder
       summary: Legt Bestellung an. Schreibrecht haben ADMIN und MANAGER.
@@ -635,6 +657,8 @@ paths:
                 $ref: "#/components/schemas/Movement"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
     patch:

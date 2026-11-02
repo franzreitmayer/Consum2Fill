@@ -51,7 +51,7 @@ describe("admin users", () => {
         "user",
       ]);
       expect(Object.keys(res.body[0]).sort()).toEqual(
-        ["displayName", "email", "id", "role", "source", "username"].sort(),
+        ["displayName", "email", "id", "mustChangePassword", "role", "source", "username"].sort(),
       );
       expect(res.text).not.toMatch(/scrypt|passwordHash/);
     });
@@ -69,6 +69,7 @@ describe("admin users", () => {
         email: "neu@example.org",
         role: "USER",
         source: "local",
+        mustChangePassword: false,
       });
       const login = await request(context.app)
         .post(API_PATHS.login)
@@ -95,6 +96,10 @@ describe("admin users", () => {
       ["object as username", { username: { $ne: null } }],
       ["no displayName", { displayName: "" }],
       ["number as email", { email: 1 }],
+      ["NUL in the email", { email: "a\u0000@example.org" }],
+      ["a lone surrogate in the email", { email: "a\ud800@example.org" }],
+      ["NUL in the username", { username: "a\u0000b" }],
+      ["a lone surrogate in the username", { username: "a\ud800b" }],
       ["unknown role", { role: "manager" }],
       ["array as role", { role: ["ADMIN"] }],
       ["short password", { password: "kurz" }],
@@ -124,6 +129,7 @@ describe("admin users", () => {
         email: "a@example.org",
         role: "MANAGER",
         source: "local",
+        mustChangePassword: false,
       });
     });
 
@@ -140,6 +146,17 @@ describe("admin users", () => {
       const res = await admin.patch(adminUserPath(await idOf("user"))).send({ username: "admin" });
 
       expect(res.status).toBe(409);
+    });
+
+    it.each([
+      ["NUL in the email", { email: "a\u0000@example.org" }],
+      ["a lone surrogate in the email", { email: "a\ud800@example.org" }],
+      ["NUL in the username", { username: "a\u0000b" }],
+      ["a lone surrogate in the username", { username: "a\ud800b" }],
+    ])("rejects %s with 400", async (_name, patch) => {
+      const res = await admin.patch(adminUserPath(await idOf("user"))).send(patch);
+
+      expect(res.status).toBe(400);
     });
 
     it("answers an unknown id with 404", async () => {
@@ -328,6 +345,16 @@ describe("admin users", () => {
   });
 
   describe("set password", () => {
+    it("lifts the demand for a password change", async () => {
+      const id = await idOf("user");
+      await context.stores.users.update(id, { mustChangePassword: true });
+
+      const res = await admin.put(adminUserPasswordPath(id)).send({ password: "neues-passwort" });
+
+      expect(res.status).toBe(204);
+      expect((await context.stores.users.findById(id))?.mustChangePassword).toBe(false);
+    });
+
     it("replaces the password and ends the sessions of the user", async () => {
       const agent = await loginAs(context.app, "user");
       const otherAdminSession = await admin.get(API_PATHS.me);

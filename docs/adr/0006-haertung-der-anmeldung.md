@@ -22,4 +22,4 @@ Der Erstbenutzer `admin` muss sein Passwort nach der ersten Anmeldung ändern, b
 
 **Risiko:** Wer ein Startpasswort vor dem Berechtigten kennt, kann das Konto weiterhin übernehmen, indem er die Änderung zuerst ausführt. Das schließt erst eine Einrichtung ohne Startpasswörter.
 
-Die Limits und der Fehlerspeicher liegen im Prozess und gelten je App-Instanz. Die Prüfung der Startkonten kostet bei jedem Start drei `scrypt`-Berechnungen.
+Die Limits und der Fehlerspeicher liegen im Prozess und gelten je App-Instanz. Die Prüfung der Startkonten kostet bei jedem Start bis zu drei `scrypt`-Berechnungen.

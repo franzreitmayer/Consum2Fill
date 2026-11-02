@@ -2,6 +2,7 @@ import {
   DEFAULT_UNIT,
   MIN_PASSWORD_LENGTH,
   ROLES,
+  type ChangeOwnPasswordRequest,
   type CreateMovementRequest,
   type CreateStorageLocationRequest,
   type CreateUserRequest,
@@ -36,19 +37,26 @@ function parseText(value: unknown, label: string): string {
   return value.trim();
 }
 
-function parseRequiredText(value: unknown, label: string): string {
-  const text = parseText(value, label);
-  if (!text) throw badRequest(`${label} darf nicht leer sein.`);
+function assertStorableCharacters(text: string, label: string): void {
   // MongoDB would store a lone surrogate as U+FFFD, so that two different names could collide.
   if (/\p{Cs}/u.test(text) || text.includes("\0")) {
     throw badRequest(`${label} enthält ungültige Zeichen.`);
   }
+}
+
+function parseRequiredText(value: unknown, label: string): string {
+  const text = parseText(value, label);
+  if (!text) throw badRequest(`${label} darf nicht leer sein.`);
+  assertStorableCharacters(text, label);
   return text;
 }
 
 function parseEmail(value: unknown): string | null {
   if (value === null) return null;
-  return parseText(value, "Die E-Mail-Adresse") || null;
+  const label = "Die E-Mail-Adresse";
+  const text = parseText(value, label);
+  assertStorableCharacters(text, label);
+  return text || null;
 }
 
 function parseRole(value: unknown): Role {
@@ -58,12 +66,23 @@ function parseRole(value: unknown): Role {
   return value as Role;
 }
 
-export function parsePassword(value: unknown): string {
-  const { password } = parseBody(value);
-  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
-    throw badRequest(`Das Passwort muss mindestens ${MIN_PASSWORD_LENGTH} Zeichen lang sein.`);
+function parseNewPassword(value: unknown, label: string): string {
+  if (typeof value !== "string" || value.length < MIN_PASSWORD_LENGTH) {
+    throw badRequest(`${label} muss mindestens ${MIN_PASSWORD_LENGTH} Zeichen lang sein.`);
   }
-  return password;
+  return value;
+}
+
+export function parsePassword(value: unknown): string {
+  return parseNewPassword(parseBody(value).password, "Das Passwort");
+}
+
+export function parseChangeOwnPassword(value: unknown): ChangeOwnPasswordRequest {
+  const { currentPassword, newPassword } = parseBody(value);
+  if (typeof currentPassword !== "string") {
+    throw badRequest("Das aktuelle Passwort muss ein Text sein.");
+  }
+  return { currentPassword, newPassword: parseNewPassword(newPassword, "Das neue Passwort") };
 }
 
 export function parseLogin(value: unknown): LoginRequest {

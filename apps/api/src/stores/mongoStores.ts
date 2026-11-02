@@ -34,6 +34,8 @@ function toStoredUser(doc: UserFields & { _id: unknown }): StoredUser {
     email: doc.email ?? null,
     role: doc.role,
     source: doc.source,
+    // Documents from before this field have none
+    mustChangePassword: doc.mustChangePassword ?? false,
     passwordHash: doc.passwordHash ?? null,
     oidcIssuer: doc.oidcIssuer ?? null,
     oidcSubject: doc.oidcSubject ?? null,

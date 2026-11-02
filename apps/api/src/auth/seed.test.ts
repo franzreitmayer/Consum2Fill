@@ -2,7 +2,8 @@ import { API_PATHS } from "@c2r/shared";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestContext } from "../testSupport.js";
-import { seedDefaultUsers } from "./seed.js";
+import { hashPassword } from "./passwords.js";
+import { flagDefaultPasswords, seedDefaultUsers } from "./seed.js";
 
 describe("seedDefaultUsers", () => {
   beforeEach(() => {
@@ -65,5 +66,92 @@ describe("seedDefaultUsers", () => {
     await expect(seedDefaultUsers(stores.users)).resolves.toBe(false);
 
     expect(await stores.users.count()).toBe(3);
+  });
+
+  it("demands a password change from the default users", async () => {
+    const { stores } = createTestContext();
+
+    await seedDefaultUsers(stores.users);
+
+    const users = await stores.users.list();
+    expect(users.map((user) => user.mustChangePassword)).toEqual([true, true, true]);
+  });
+});
+
+describe("flagDefaultPasswords", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function createUnflagged() {
+    const { stores } = createTestContext();
+    await seedDefaultUsers(stores.users);
+    for (const { id } of await stores.users.list()) {
+      await stores.users.update(id, { mustChangePassword: false });
+    }
+    vi.mocked(console.warn).mockClear();
+    return stores.users;
+  }
+
+  it("flags default users that still have their default password", async () => {
+    const users = await createUnflagged();
+
+    await expect(flagDefaultPasswords(users)).resolves.toEqual(["admin", "manager", "user"]);
+
+    const flags = (await users.list()).map((user) => user.mustChangePassword);
+    expect(flags).toEqual([true, true, true]);
+    expect(console.warn).toHaveBeenCalledOnce();
+  });
+
+  it("leaves a changed password alone", async () => {
+    const users = await createUnflagged();
+    const admin = await users.findByUsername("admin");
+    await users.update(admin?.id ?? "", { passwordHash: await hashPassword("etwas-anderes") });
+
+    await expect(flagDefaultPasswords(users)).resolves.toEqual(["manager", "user"]);
+
+    expect((await users.findByUsername("admin"))?.mustChangePassword).toBe(false);
+  });
+
+  it("ignores IAM users and other names", async () => {
+    const { stores } = createTestContext();
+    const { users } = stores;
+    const iam = await users.create({
+      username: "admin",
+      displayName: "IAM",
+      email: null,
+      role: "ADMIN",
+      source: "oidc",
+      oidcIssuer: "https://idp.example",
+      oidcSubject: "sub",
+    });
+    const other = await users.create({
+      username: "other",
+      displayName: "Other",
+      email: null,
+      role: "USER",
+      source: "local",
+      passwordHash: await hashPassword("other"),
+    });
+
+    await expect(flagDefaultPasswords(users)).resolves.toEqual([]);
+
+    expect((await users.findById(iam.id))?.mustChangePassword).toBe(false);
+    expect((await users.findById(other.id))?.mustChangePassword).toBe(false);
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it("does not repeat itself for users already flagged", async () => {
+    const { stores } = createTestContext();
+    await seedDefaultUsers(stores.users);
+    vi.mocked(console.warn).mockClear();
+
+    await expect(flagDefaultPasswords(stores.users)).resolves.toEqual([]);
+
+    expect(console.warn).not.toHaveBeenCalled();
   });
 });

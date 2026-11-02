@@ -6,8 +6,13 @@ import {
   type HelloResponse,
 } from "@c2r/shared";
 import express, { type Express } from "express";
+import helmet from "helmet";
 import { createSecretBox } from "./auth/secretBox.js";
-import { createRequireSession, requireAdmin } from "./auth/sessions.js";
+import {
+  createRequireSession,
+  createRequireSessionAllowingPasswordChange,
+  requireAdmin,
+} from "./auth/sessions.js";
 import { apiErrorHandler } from "./http/errors.js";
 import { createMutex } from "./http/mutex.js";
 import type { OidcClientPort } from "./oidc/oidcClient.js";
@@ -18,6 +23,7 @@ import type { RouteContext } from "./routes/context.js";
 import { createMasterDataRouter } from "./routes/masterDataRoutes.js";
 import { createMovementRouter } from "./routes/movementRoutes.js";
 import { createOidcRouter } from "./routes/oidcRoutes.js";
+import { createOwnPasswordRouter } from "./routes/ownPasswordRoutes.js";
 import type { Stores } from "./stores/types.js";
 
 export interface AppOptions {
@@ -45,6 +51,33 @@ export function createApp({
   // clients would share the IP of the proxy and thus one login rate limit.
   if (secureCookies) app.set("trust proxy", 1);
 
+  // Ahead of everything, so that it covers the API, its errors and the delivered frontend.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        // Lists every directive itself: the defaults would add upgrade-insecure-requests, which
+        // makes the application unusable over plain http in the local network.
+        useDefaults: false,
+        directives: {
+          defaultSrc: ["'self'"],
+          // MUI creates inline styles at runtime
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:"],
+          fontSrc: ["'self'", "data:"],
+          scriptSrc: ["'self'"],
+          connectSrc: ["'self'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          frameAncestors: ["'none'"],
+          objectSrc: ["'none'"],
+        },
+      },
+      // Both only take effect on https; over http, browsers ignore COOP and complain about it.
+      strictTransportSecurity: secureCookies,
+      crossOriginOpenerPolicy: secureCookies,
+    }),
+  );
+
   const requireSession = createRequireSession(stores.users, stores.sessions);
   const context: RouteContext = {
     stores,
@@ -53,12 +86,20 @@ export function createApp({
     publicUrl,
     secureCookies,
     requireSession,
+    requireSessionAllowingPasswordChange: createRequireSessionAllowingPasswordChange(
+      stores.users,
+      stores.sessions,
+    ),
     domainLock: createMutex(),
   };
 
   // Ahead of the parser below: these routers parse the body themselves, after their guards.
   app.use(createMasterDataRouter(context));
   app.use(createMovementRouter(context));
+  app.use(createOwnPasswordRouter(context));
+
+  // Also ahead of the parser, so that a body cannot turn the 401 or 403 into a 400, 413 or 415.
+  app.use("/api/admin", requireSession, requireAdmin);
 
   app.use("/api", express.json());
 
@@ -79,7 +120,6 @@ export function createApp({
   app.use(createAuthRouter(context));
   app.use(createOidcRouter(context));
 
-  app.use("/api/admin", requireSession, requireAdmin);
   app.use(createAdminUsersRouter(context));
   app.use(createAdminOidcSettingsRouter(context));
 
