@@ -292,8 +292,10 @@ describe("Order from consumptions dialog", () => {
     stub.routes[CONSUMPTIONS_ROUTE] = json([ONE, changedTwo, OTHER_LOCATION, OTHER_MATERIAL]);
     press(dialog, "Bestellen");
 
-    const alert = await within(dialog).findByText(new RegExp(message));
-    expect(alert.textContent).toContain("Die Verbräuche haben sich inzwischen geändert.");
+    // One hint replaces the server message, which would ask for a reload that already runs.
+    const alert = await within(dialog).findByText(/inzwischen geändert oder gelöscht/);
+    expect(alert.textContent).toContain("Die Liste wird neu geladen");
+    expect(alert.textContent).not.toContain(message);
     expect(screen.getByRole("dialog")).toBeTruthy();
     await waitFor(() => expect(stub.bodies(CONSUMPTIONS_ROUTE)).toHaveLength(2));
 

@@ -36,7 +36,7 @@ const TITLES = {
 };
 
 const CHANGED_HINT =
-  "Die Verbräuche haben sich inzwischen geändert. Die Liste wurde neu geladen, bitte die Auswahl prüfen.";
+  "Mindestens ein Verbrauch wurde inzwischen geändert oder gelöscht. Die Liste wird neu geladen, bitte danach die Auswahl prüfen.";
 
 /** Same rule as the API: ADMIN and MANAGER change everything, USER only the own records. */
 function canChange(user: User, consumption: Consumption): boolean {
@@ -76,9 +76,10 @@ export function ConsumptionsAdmin({
     try {
       order = await api<Order>(API_PATHS.ordersFromConsumptions, { method: "POST", body });
     } catch (error) {
-      // Deleted (404) or changed (409) meanwhile: the refreshed list shows the current state.
+      // Deleted (404) or changed (409) meanwhile: the list is loaded again, so the hint replaces
+      // the server message, which asks for exactly that.
       if (error instanceof ApiError && (error.status === 404 || error.status === 409)) {
-        throw new ApiError(error.status, `${error.message} ${CHANGED_HINT}`);
+        throw new ApiError(error.status, CHANGED_HINT);
       }
       throw error;
     }
