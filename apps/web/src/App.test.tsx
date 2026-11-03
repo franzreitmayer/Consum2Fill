@@ -210,7 +210,7 @@ describe("App administration access", () => {
     await screen.findByText(LOADED_TEXT);
 
     expect(screen.queryByRole("button", { name: "Administration" })).toBeNull();
-    expect(screen.queryByRole("tab")).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Benutzer" })).toBeNull();
     expect(api.bodies(`GET ${API_PATHS.adminUsers}`)).toHaveLength(0);
   });
 

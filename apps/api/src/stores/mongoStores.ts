@@ -1,11 +1,11 @@
+import type { RecordCreator } from "@c2r/shared";
 import mongoose, { type HydratedDocument, type Model } from "mongoose";
 import { ConsumptionModel, type ConsumptionDocument } from "../models/consumption.js";
 import { CounterModel } from "../models/counter.js";
 import { DataImportModel } from "../models/dataImport.js";
 import { MaterialModel, type MaterialDocument } from "../models/material.js";
-import type { MovementDocument } from "../models/movement.js";
 import { OIDC_SETTINGS_ID, OidcSettingsModel } from "../models/oidcSettings.js";
-import { OrderModel } from "../models/order.js";
+import { OrderModel, type OrderDocument } from "../models/order.js";
 import type { RecordDocument } from "../models/record.js";
 import { SessionModel } from "../models/session.js";
 import { StorageLocationModel, type StorageLocationDocument } from "../models/storageLocation.js";
@@ -17,6 +17,7 @@ import type {
   MovementFields,
   MovementStore,
   OidcSettingsStore,
+  OrderFields,
   RecordStore,
   SessionStore,
   StorageLocationFields,
@@ -223,6 +224,12 @@ function createMongoRecordStore<Doc extends RecordDocument & Fields, Fields exte
     async delete(id) {
       return (await model.findByIdAndDelete(id).exec()) !== null;
     },
+    async restore({ id, number, createdAt, updatedAt, ...fields }) {
+      // Without timestamps, so that createdAt and updatedAt stay as they were read. A taken id or
+      // number is a server fault here, never a taken name.
+      const doc = new model({ ...fields, _id: id, number, createdAt, updatedAt });
+      await doc.save({ timestamps: false });
+    },
   };
 }
 
@@ -234,12 +241,26 @@ function toMovementFields(doc: MovementFields): MovementFields {
   };
 }
 
-// Documents from before createdBy have none. The copy leaves no Mongoose subdocument in the record.
+// The copy leaves no Mongoose subdocument in the record
+function toCreator(createdBy: RecordCreator | null | undefined): RecordCreator | null {
+  return createdBy ? { id: createdBy.id, displayName: createdBy.displayName } : null;
+}
+
+// Documents from before createdBy have none
 function toConsumptionFields(doc: ConsumptionFields): ConsumptionFields {
-  const { createdBy } = doc;
+  return { ...toMovementFields(doc), createdBy: toCreator(doc.createdBy) };
+}
+
+// Documents from before createdBy and requestedBy have neither. The map turns the MongooseArray
+// into a plain array of plain objects.
+function toOrderFields(doc: OrderFields): OrderFields {
   return {
     ...toMovementFields(doc),
-    createdBy: createdBy ? { id: createdBy.id, displayName: createdBy.displayName } : null,
+    createdBy: toCreator(doc.createdBy),
+    requestedBy: (doc.requestedBy ?? []).map(({ number, createdBy }) => ({
+      number,
+      createdBy: toCreator(createdBy),
+    })),
   };
 }
 
@@ -297,11 +318,7 @@ export const mongoStores: Stores = {
     "consumptions",
     toConsumptionFields,
   ),
-  orders: createMongoMovementStore<MovementDocument, MovementFields>(
-    OrderModel,
-    "orders",
-    toMovementFields,
-  ),
+  orders: createMongoMovementStore<OrderDocument, OrderFields>(OrderModel, "orders", toOrderFields),
 };
 
 // Waits for the unique and TTL indexes, so that they hold from the first write on.

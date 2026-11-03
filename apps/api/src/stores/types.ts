@@ -1,4 +1,12 @@
-import type { Consumption, Material, Movement, Role, StorageLocation, User } from "@c2r/shared";
+import type {
+  Consumption,
+  Material,
+  Movement,
+  Order,
+  Role,
+  StorageLocation,
+  User,
+} from "@c2r/shared";
 
 export interface StoredUser extends User {
   passwordHash: string | null;
@@ -86,6 +94,7 @@ export type MaterialFields = Pick<Material, "name" | "unit" | "description" | "t
 export type StorageLocationFields = Pick<StorageLocation, "name">;
 export type MovementFields = Pick<Movement, "storageLocationId" | "materialId" | "quantity">;
 export type ConsumptionFields = MovementFields & Pick<Consumption, "createdBy">;
+export type OrderFields = MovementFields & Pick<Order, "createdBy" | "requestedBy">;
 
 // id and number are assigned by the store, createdAt and updatedAt maintained by it
 export type StoredRecord<Fields extends object> = Fields & {
@@ -102,6 +111,9 @@ export interface RecordStore<Fields extends object> {
   create(fields: Fields): Promise<StoredRecord<Fields>>;
   update(id: string, patch: Partial<Fields>): Promise<StoredRecord<Fields> | null>;
   delete(id: string): Promise<boolean>;
+  // Puts a deleted record back exactly as it was read: same id, number, fields and timestamps.
+  // The counter stays as it is. Fails if the id or the number is taken.
+  restore(record: StoredRecord<Fields>): Promise<void>;
 }
 
 export type MovementReference = "storageLocationId" | "materialId";
@@ -126,5 +138,5 @@ export interface Stores {
   materials: RecordStore<MaterialFields>;
   storageLocations: RecordStore<StorageLocationFields>;
   consumptions: MovementStore<ConsumptionFields>;
-  orders: MovementStore;
+  orders: MovementStore<OrderFields>;
 }

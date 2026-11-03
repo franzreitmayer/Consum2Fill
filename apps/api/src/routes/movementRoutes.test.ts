@@ -35,9 +35,9 @@ async function createScenario(): Promise<Scenario> {
 }
 
 describe.each([
-  { label: "consumptions", path: API_PATHS.consumptions, hasCreator: true },
-  { label: "orders", path: API_PATHS.orders, hasCreator: false },
-])("$label", ({ path, hasCreator }) => {
+  { label: "consumptions", path: API_PATHS.consumptions, extraFields: {} },
+  { label: "orders", path: API_PATHS.orders, extraFields: { requestedBy: [] } },
+])("$label", ({ path, extraFields }) => {
   let scenario: Scenario;
   let admin: Agent;
 
@@ -62,7 +62,8 @@ describe.each([
       number: 1,
       createdAt: expect.stringMatching(ISO_TEXT),
       updatedAt: expect.stringMatching(ISO_TEXT),
-      ...(hasCreator && { createdBy: { id: expect.any(String), displayName: "Administrator" } }),
+      createdBy: { id: expect.any(String), displayName: "Administrator" },
+      ...extraFields,
     });
   });
 

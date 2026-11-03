@@ -1,12 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type ApiClient, errorMessage } from "./api";
+import { ApiError, type ApiClient, errorMessage } from "./api";
 
-export type ResourceState<T> =
-  { kind: "loading" } | { kind: "loaded"; data: T } | { kind: "failed"; message: string };
+/** A failed request; status is the HTTP status of an error answer, e.g. 403 after a lost role. */
+export interface ResourceFailure {
+  kind: "failed";
+  message: string;
+  status?: number;
+}
+
+export type ResourceState<T> = { kind: "loading" } | { kind: "loaded"; data: T } | ResourceFailure;
 
 /** The outcome of refreshWithResult. "cancelled": a newer request or local change replaced it. */
-export type RefreshResult =
-  { kind: "loaded" } | { kind: "failed"; message: string } | { kind: "cancelled" };
+export type RefreshResult = { kind: "loaded" } | ResourceFailure | { kind: "cancelled" };
+
+function failure(error: unknown): ResourceFailure {
+  return {
+    kind: "failed",
+    message: errorMessage(error),
+    ...(error instanceof ApiError && { status: error.status }),
+  };
+}
 
 /**
  * Loads a resource on mount; reload retries and setData applies local changes.
@@ -27,9 +40,7 @@ export function useApiResource<T>(api: ApiClient, path: string) {
     api<T>(path, { signal: controller.signal })
       .then((data) => setState({ kind: "loaded", data }))
       .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          setState({ kind: "failed", message: errorMessage(error) });
-        }
+        if (!controller.signal.aborted) setState(failure(error));
       });
     return () => controller.abort();
   }, [api, path, attempt]);
@@ -51,9 +62,7 @@ export function useApiResource<T>(api: ApiClient, path: string) {
         return { kind: "loaded" };
       },
       (error: unknown): RefreshResult =>
-        controller.signal.aborted
-          ? { kind: "cancelled" }
-          : { kind: "failed", message: errorMessage(error) },
+        controller.signal.aborted ? { kind: "cancelled" } : failure(error),
     );
   }, [api, path, cancelRefresh]);
 

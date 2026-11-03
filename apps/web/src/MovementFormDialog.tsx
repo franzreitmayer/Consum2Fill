@@ -1,21 +1,19 @@
 import type {
-  Consumption,
   CreateMovementRequest,
   Material,
+  Movement,
   StorageLocation,
   UpdateMovementRequest,
 } from "@c2r/shared";
 import Autocomplete from "@mui/material/Autocomplete";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
 import { useState } from "react";
 import { FormDialog } from "./FormDialog";
 import { filterMaterials } from "./materialSearch";
-import { formatQuantity, parseQuantity, stepQuantity } from "./quantity";
+import { formatQuantity, parseQuantity } from "./quantity";
+import { QuantityField } from "./QuantityField";
 
-export type ConsumptionBody = CreateMovementRequest | UpdateMovementRequest;
+export type MovementBody = CreateMovementRequest | UpdateMovementRequest;
 
 export const UNKNOWN_LOCATION = "Unbekannter Lagerort";
 export const UNKNOWN_MATERIAL = "Unbekanntes Material";
@@ -34,31 +32,39 @@ function placeholderMaterial(id: string): Material {
   };
 }
 
-interface ConsumptionFormDialogProps {
+export interface MovementDialogTitles {
+  create: string;
+  edit: (number: number) => string;
+}
+
+interface MovementFormDialogProps {
   /** The record to edit; null creates a new one. */
-  consumption: Consumption | null;
+  record: Movement | null;
+  titles: MovementDialogTitles;
   locations: StorageLocation[];
   materials: Material[];
   /** Preselected when creating, usually the location of the active filter. */
   initialLocationId: string;
   onClose: () => void;
   /** A thrown error is displayed in the dialog. */
-  onSave: (body: ConsumptionBody) => Promise<void>;
+  onSave: (body: MovementBody) => Promise<void>;
 }
 
-export function ConsumptionFormDialog({
-  consumption,
+/** The dialog for consumptions and orders: location, material search and quantity. */
+export function MovementFormDialog({
+  record,
+  titles,
   locations,
   materials,
   initialLocationId,
   onClose,
   onSave,
-}: ConsumptionFormDialogProps) {
-  const initialQuantity = consumption ? formatQuantity(consumption.quantity) : "1";
-  const [locationId, setLocationId] = useState(consumption?.storageLocationId ?? initialLocationId);
+}: MovementFormDialogProps) {
+  const initialQuantity = record ? formatQuantity(record.quantity) : "1";
+  const [locationId, setLocationId] = useState(record?.storageLocationId ?? initialLocationId);
   const [material, setMaterial] = useState<Material | null>(() => {
-    if (!consumption) return null;
-    const { materialId } = consumption;
+    if (!record) return null;
+    const { materialId } = record;
     return materials.find((other) => other.id === materialId) ?? placeholderMaterial(materialId);
   });
   const [quantity, setQuantity] = useState(initialQuantity);
@@ -71,20 +77,17 @@ export function ConsumptionFormDialog({
       ? [...materials, material]
       : materials;
   const missingOwnLocationId =
-    consumption && !locations.some((other) => other.id === consumption.storageLocationId)
-      ? consumption.storageLocationId
+    record && !locations.some((other) => other.id === record.storageLocationId)
+      ? record.storageLocationId
       : null;
   const selectedLocationId =
     locationId === missingOwnLocationId || locations.some((other) => other.id === locationId)
       ? locationId
       : "";
 
-  const decreased = stepQuantity(quantity, -1);
-  const increased = stepQuantity(quantity, 1);
-
   /** An unchanged text is not checked: an older record may hold more decimals than allowed. */
   function readQuantity(): number {
-    if (consumption && quantity === initialQuantity) return consumption.quantity;
+    if (record && quantity === initialQuantity) return record.quantity;
     const parsed = parseQuantity(quantity);
     if (!parsed.ok) throw new Error(parsed.message);
     return parsed.value;
@@ -95,13 +98,13 @@ export function ConsumptionFormDialog({
     if (!material) throw new Error("Bitte ein Material wählen.");
     const value = readQuantity();
 
-    const body: ConsumptionBody = consumption
+    const body: MovementBody = record
       ? {
-          ...(selectedLocationId !== consumption.storageLocationId && {
+          ...(selectedLocationId !== record.storageLocationId && {
             storageLocationId: selectedLocationId,
           }),
-          ...(material.id !== consumption.materialId && { materialId: material.id }),
-          ...(value !== consumption.quantity && { quantity: value }),
+          ...(material.id !== record.materialId && { materialId: material.id }),
+          ...(value !== record.quantity && { quantity: value }),
         }
       : { storageLocationId: selectedLocationId, materialId: material.id, quantity: value };
     if (Object.keys(body).length === 0) {
@@ -119,7 +122,7 @@ export function ConsumptionFormDialog({
 
   return (
     <FormDialog
-      title={consumption ? `Verbrauch Nr. ${consumption.number} bearbeiten` : "Verbrauch erfassen"}
+      title={record ? titles.edit(record.number) : titles.create}
       submitLabel="Speichern"
       onClose={onClose}
       onSubmit={handleSubmit}
@@ -184,70 +187,12 @@ export function ConsumptionFormDialog({
           />
         )}
       />
-      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-        <StepButton
-          label="Menge verringern"
-          symbol="−"
-          disabled={sending || decreased === null}
-          onClick={() => decreased !== null && setQuantity(decreased)}
-        />
-        <TextField
-          label="Menge"
-          value={quantity}
-          onChange={(event) => setQuantity(event.target.value)}
-          sx={{ flex: 1, minWidth: 0 }}
-          autoComplete="off"
-          slotProps={{
-            htmlInput: { inputMode: "decimal", enterKeyHint: "done", readOnly: sending },
-            input: {
-              endAdornment: material && material.unit !== "" && (
-                <InputAdornment
-                  position="end"
-                  // Long units wrap instead of being cut off or pushing the buttons out. Not
-                  // shrinking keeps short units in one piece, "anywhere" would allow any break.
-                  sx={{
-                    flexShrink: 0,
-                    height: "auto",
-                    maxHeight: "none",
-                    maxWidth: "50%",
-                    whiteSpace: "normal",
-                    overflowWrap: "anywhere",
-                  }}
-                >
-                  {material.unit}
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-        <StepButton
-          label="Menge erhöhen"
-          symbol="+"
-          disabled={sending || increased === null}
-          onClick={() => increased !== null && setQuantity(increased)}
-        />
-      </Box>
+      <QuantityField
+        value={quantity}
+        onChange={setQuantity}
+        unit={material?.unit ?? ""}
+        disabled={sending}
+      />
     </FormDialog>
-  );
-}
-
-interface StepButtonProps {
-  label: string;
-  symbol: string;
-  disabled: boolean;
-  onClick: () => void;
-}
-
-function StepButton({ label, symbol, disabled, onClick }: StepButtonProps) {
-  return (
-    <Button
-      variant="outlined"
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      sx={{ flex: "none", minWidth: 56, minHeight: 56, px: 0, fontSize: "1.5rem" }}
-    >
-      {symbol}
-    </Button>
   );
 }

@@ -145,10 +145,10 @@ afterEach(() => {
 });
 
 describe("CaptureArea", () => {
-  it("names the area with headings and without tabs", async () => {
+  it("names the area with headings and without tabs for USER", async () => {
     stubAll();
 
-    renderArea();
+    renderArea("USER");
 
     expect(screen.getByRole("heading", { level: 1, name: "Erfassung" })).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Verbrauch/Bedarf" })).toBeTruthy();

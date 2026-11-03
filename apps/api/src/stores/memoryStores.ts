@@ -7,6 +7,7 @@ import type {
   MovementFields,
   MovementStore,
   OidcSettingsStore,
+  OrderFields,
   RecordStore,
   SessionStore,
   StorageLocationFields,
@@ -169,6 +170,14 @@ function createMemoryRecordStore<Fields extends object>(
       return read(updated);
     },
     delete: async (id) => records.delete(id),
+    async restore(record) {
+      const taken = [...records.values()].some(
+        (stored) => stored.id === record.id || stored.number === record.number,
+      );
+      if (taken) throw new DuplicateKeyError();
+      assertFree(record.id, record);
+      records.set(record.id, structuredClone(record));
+    },
   };
 }
 
@@ -209,6 +218,10 @@ export function createMemoryStores() {
       ...fields,
       createdBy: fields.createdBy ?? null,
     })),
-    orders: createMemoryMovementStore<MovementFields>(),
+    orders: createMemoryMovementStore<OrderFields>((fields) => ({
+      ...fields,
+      createdBy: fields.createdBy ?? null,
+      requestedBy: fields.requestedBy ?? [],
+    })),
   } satisfies Stores;
 }

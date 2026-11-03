@@ -126,7 +126,11 @@ describe("AuthenticatedApp navigation", () => {
     render(appWithRole(role));
 
     expect(screen.getByRole("heading", { name: "Erfassung" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Verbrauch/Bedarf" })).toBeTruthy();
+    if (role === "USER") {
+      expect(screen.getByRole("heading", { name: "Verbrauch/Bedarf" })).toBeTruthy();
+    } else {
+      expect(screen.getByRole("tab", { name: "Verbrauch/Bedarf", selected: true })).toBeTruthy();
+    }
     await screen.findByText("Nr. 1");
     expect(screen.queryByRole("heading", { name: "Stammdaten" })).toBeNull();
   });
@@ -293,7 +297,7 @@ describe("AuthenticatedApp view filter for a changed user prop", () => {
     rerender(appWithRole("MANAGER"));
 
     expect(await screen.findByText("Nr. 1")).toBeTruthy();
-    expect(screen.queryByRole("tab")).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Benutzer" })).toBeNull();
     expect(navLabels()).toEqual(["Erfassung", "Stammdaten"]);
   });
 

@@ -611,7 +611,7 @@ paths:
   /api/orders:
     get:
       operationId: listOrders
-      summary: Listet Bestellungen, aufsteigend nach Nummer
+      summary: Listet Bestellungen, aufsteigend nach Nummer. Lesen dürfen nur ADMIN und MANAGER.
       responses:
         "200":
           description: Bestellungen
@@ -620,14 +620,16 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Movement"
+                  $ref: "#/components/schemas/Order"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
     post:
       operationId: createOrder
-      summary: Legt Bestellung an. Schreibrecht haben ADMIN und MANAGER.
+      summary: >-
+        Legt Bestellung von Hand an. Nur ADMIN und MANAGER, createdBy setzt der Server, requestedBy
+        ist leer.
       requestBody:
         required: true
         content:
@@ -640,26 +642,57 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Movement"
+                $ref: "#/components/schemas/Order"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+  /api/orders/from-consumptions:
+    post:
+      operationId: createOrderFromConsumptions
+      summary: >-
+        Legt eine Bestellung aus Verbräuchen an und löscht diese Verbräuche in einem Schritt. Nur
+        ADMIN und MANAGER. Lagerort und Material kommen aus den Verbräuchen, die alle dieselben
+        haben müssen (sonst 400). Fehlt ein Verbrauch, antwortet die API mit 404, wurde er seit dem
+        Lesen geändert (updatedAt weicht ab), mit 409. In beiden Fällen ändert sich nichts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderFromConsumptionsRequest"
+      responses:
+        "201":
+          description: Angelegt, die Verbräuche sind gelöscht
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /api/orders/{id}:
     parameters:
       - $ref: "#/components/parameters/RecordId"
     get:
       operationId: getOrder
-      summary: Liefert Bestellung
+      summary: Liefert Bestellung. Lesen dürfen nur ADMIN und MANAGER.
       responses:
         "200":
           description: Bestellung
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Movement"
+                $ref: "#/components/schemas/Order"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -668,7 +701,7 @@ paths:
           $ref: "#/components/responses/NotFound"
     patch:
       operationId: updateOrder
-      summary: Ändert Bestellung. Schreibrecht haben ADMIN und MANAGER.
+      summary: Ändert Bestellung. Nur ADMIN und MANAGER, createdBy und requestedBy bleiben unverändert.
       requestBody:
         required: true
         content:
@@ -681,7 +714,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Movement"
+                $ref: "#/components/schemas/Order"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -693,10 +726,27 @@ paths:
     delete:
       operationId: deleteOrder
       summary: >-
-        Löscht Bestellung. Schreibrecht haben ADMIN und MANAGER.
+        Löscht Bestellung, etwa eine falsch erfasste oder stornierte. Nur ADMIN und MANAGER.
       responses:
         "204":
           description: Gelöscht
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/orders/{id}/delivered:
+    parameters:
+      - $ref: "#/components/parameters/RecordId"
+    post:
+      operationId: markOrderDelivered
+      summary: >-
+        Meldet die Bestellung als geliefert und entfernt sie. Nur ADMIN und MANAGER. Ändert heute
+        keinen Bestand, ist aber vom Löschen getrennt, damit sich beides später unterscheiden lässt.
+      responses:
+        "204":
+          description: Als geliefert entfernt
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1077,6 +1127,64 @@ components:
               oneOf:
                 - type: "null"
                 - $ref: "#/components/schemas/RecordCreator"
+    Order:
+      allOf:
+        - $ref: "#/components/schemas/Movement"
+        - type: object
+          required: [createdBy, requestedBy]
+          properties:
+            createdBy:
+              description: >-
+                Wer bestellt hat. Setzt der Server beim Anlegen, der Name bleibt nach dem Löschen des
+                Benutzers erhalten. null bei Bestellungen von vor dieser Angabe.
+              oneOf:
+                - type: "null"
+                - $ref: "#/components/schemas/RecordCreator"
+            requestedBy:
+              description: >-
+                Die Verbräuche, aus denen die Bestellung erzeugt wurde, aufsteigend nach Nummer. Leer bei
+                Bestellungen von Hand und bei Bestellungen von vor dieser Angabe.
+              type: array
+              items:
+                $ref: "#/components/schemas/OrderRequest"
+    OrderRequest:
+      type: object
+      description: Ein übernommener Verbrauch
+      required: [number, createdBy]
+      properties:
+        number:
+          type: integer
+          minimum: 1
+          description: Nummer des gelöschten Verbrauchs
+        createdBy:
+          description: Wer den Verbrauch erfasst hatte, null bei Verbräuchen ohne diese Angabe
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/RecordCreator"
+    CreateOrderFromConsumptionsRequest:
+      type: object
+      required: [consumptions, quantity]
+      properties:
+        consumptions:
+          type: array
+          minItems: 1
+          maxItems: 100
+          description: Jeder Verbrauch höchstens einmal
+          items:
+            type: object
+            required: [id, updatedAt]
+            properties:
+              id:
+                type: string
+                format: uuid
+              updatedAt:
+                type: string
+                format: date-time
+                description: Stand des Verbrauchs beim Lesen, so wie die API ihn geliefert hat
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+          description: Bestellmenge, frei wählbar, etwa die Summe der Verbräuche
     RecordCreator:
       type: object
       required: [id, displayName]

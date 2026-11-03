@@ -12,6 +12,8 @@ export interface RecordRouterOptions<Fields extends object> {
   path: string;
   store: RecordStore<Fields>;
   writeRoles: readonly Role[];
+  // Without it, every signed-in user may read
+  readRoles?: readonly Role[];
   notFoundMessage: string;
   // Parsers return checked primitives only; they run before the lock is taken. parseCreate also
   // gets the response, for fields the server sets from the session and never from the body.
@@ -30,7 +32,7 @@ export interface RecordRouterOptions<Fields extends object> {
   beforeDelete?: (id: string, existing: StoredRecord<Fields>, res: Response) => Promise<void>;
 }
 
-function toResponse<Fields extends object>(record: StoredRecord<Fields>) {
+export function toResponse<Fields extends object>(record: StoredRecord<Fields>) {
   return {
     ...record,
     createdAt: record.createdAt.toISOString(),
@@ -40,15 +42,17 @@ function toResponse<Fields extends object>(record: StoredRecord<Fields>) {
 
 // CRUD for one entity. Guards apply to the whole path, not to single routes, and run before the
 // body parser, so that every method answers 401 without a session and 403 without the role before
-// anything else is looked at. app.ts therefore mounts these routers ahead of its own parser.
+// anything else is looked at. app.ts therefore mounts these routers ahead of its own parser. Routes
+// mounted after this router under the same path pass the same guards and parser.
 export function createRecordRouter<Fields extends object>(
   { requireSession, domainLock }: RouteContext,
   options: RecordRouterOptions<Fields>,
 ): Router {
-  const { path, store, writeRoles, notFoundMessage, duplicateMessage } = options;
+  const { path, store, writeRoles, readRoles, notFoundMessage, duplicateMessage } = options;
   const { parseCreate, parseUpdate, beforeWrite, beforeUpdate, beforeDelete } = options;
   const recordPath = `${path}/:id`;
   const requireWriteRole = requireRole(...writeRoles);
+  const requireReadRole = readRoles && requireRole(...readRoles);
   const router = Router();
 
   function parseId(value: unknown): string {
@@ -78,8 +82,9 @@ export function createRecordRouter<Fields extends object>(
     path,
     requireSession,
     (req, res, next) => {
-      if (READ_METHODS.has(req.method)) next();
-      else requireWriteRole(req, res, next);
+      if (!READ_METHODS.has(req.method)) requireWriteRole(req, res, next);
+      else if (requireReadRole) requireReadRole(req, res, next);
+      else next();
     },
     express.json(),
   );

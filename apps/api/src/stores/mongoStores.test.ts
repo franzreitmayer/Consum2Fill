@@ -294,25 +294,110 @@ describe("createdBy of consumptions in the Mongo store", () => {
     expect(record?.createdBy).toEqual(createdBy);
   });
 
-  it("does not add the field to an order", async () => {
+  it("restores a record with its id, number and timestamps, without touching the counter", async () => {
+    const counter = vi.spyOn(CounterModel, "findOneAndUpdate");
+    const saved: { doc: unknown; options: unknown }[] = [];
+    vi.spyOn(ConsumptionModel.prototype, "save").mockImplementation(function (
+      this: unknown,
+      options?: unknown,
+    ) {
+      saved.push({ doc: this, options });
+      return Promise.resolve(this) as never;
+    });
+    const record = {
+      ...movement,
+      createdBy,
+      id: "2f7c2b9c-1d3e-4a5b-8c6d-7e8f9a0b1c2d",
+      number: 4,
+      createdAt: new Date("2020-01-02T03:04:05.006Z"),
+      updatedAt: new Date("2021-01-02T03:04:05.006Z"),
+    };
+
+    await mongoStores.consumptions.restore(record);
+
+    expect(counter).not.toHaveBeenCalled();
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.options).toEqual({ timestamps: false });
+    const doc = saved[0]?.doc as InstanceType<typeof ConsumptionModel>;
+    expect(doc.toObject()).toEqual({
+      ...movement,
+      createdBy,
+      _id: record.id,
+      number: 4,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    });
+  });
+});
+
+describe("orders in the Mongo store", () => {
+  const movement = { materialId: "m", storageLocationId: "s", quantity: 1 };
+  const legacy = { _id: "guid", number: 1, ...movement };
+  const createdBy = { id: "665f1c2ab0c4d8e9f0a1b2c3", displayName: "Erika Muster" };
+  const requestedBy = [
+    { number: 2, createdBy },
+    { number: 5, createdBy: null },
+  ];
+
+  function mockFindById(doc: unknown) {
     vi.spyOn(OrderModel, "findById").mockReturnValue({
-      exec: () => Promise.resolve(OrderModel.hydrate(legacy)),
+      exec: () => Promise.resolve(doc),
     } as never);
+  }
+
+  it.each([
+    ["a raw document", legacy],
+    ["a hydrated document", OrderModel.hydrate(legacy)],
+  ])("read null and an empty list from %s from before the fields", async (_label, doc) => {
+    mockFindById(doc);
 
     const record = await mongoStores.orders.findById("guid");
 
-    expect(record).not.toHaveProperty("createdBy");
+    expect(record).toMatchObject({ createdBy: null, requestedBy: [] });
     expect(Object.keys(record ?? {}).sort()).toEqual(
       [
         "createdAt",
+        "createdBy",
         "id",
         "materialId",
         "number",
         "quantity",
+        "requestedBy",
         "storageLocationId",
         "updatedAt",
       ].sort(),
     );
+  });
+
+  it("keep null and the empty list after a patch of an old document", async () => {
+    mockFindById(OrderModel.hydrate(legacy));
+    vi.spyOn(OrderModel.prototype, "save").mockResolvedValue(undefined as never);
+
+    const record = await mongoStores.orders.update("guid", { quantity: 2 });
+
+    expect(record).toMatchObject({ quantity: 2, createdBy: null, requestedBy: [] });
+  });
+
+  it("return plain arrays and objects, not Mongoose ones", async () => {
+    mockFindById(OrderModel.hydrate({ ...legacy, createdBy, requestedBy }));
+
+    const record = await mongoStores.orders.findById("guid");
+
+    expect(record?.createdBy).toEqual(createdBy);
+    expect(record?.requestedBy).toEqual(requestedBy);
+    expect(Object.getPrototypeOf(record?.createdBy)).toBe(Object.prototype);
+    expect(Object.getPrototypeOf(record?.requestedBy)).toBe(Array.prototype);
+    expect(Object.getPrototypeOf(record?.requestedBy[0])).toBe(Object.prototype);
+    expect(Object.getPrototypeOf(record?.requestedBy[0]?.createdBy)).toBe(Object.prototype);
+  });
+
+  it("store both fields on create", async () => {
+    mockCounter(6);
+    vi.spyOn(OrderModel.prototype, "save").mockResolvedValue(undefined as never);
+
+    const record = await mongoStores.orders.create({ ...movement, createdBy, requestedBy });
+
+    expect(record).toMatchObject({ ...movement, number: 6, createdBy, requestedBy });
   });
 });
 

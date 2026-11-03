@@ -1,11 +1,13 @@
 import {
   DEFAULT_UNIT,
+  MAX_CONSUMPTIONS_PER_ORDER,
   MAX_DESCRIPTION_LENGTH,
   MAX_TAG_LENGTH,
   MAX_TAGS,
   MIN_PASSWORD_LENGTH,
   ROLES,
   type ChangeOwnPasswordRequest,
+  type CreateOrderFromConsumptionsRequest,
   type CreateMaterialRequest,
   type CreateMovementRequest,
   type CreateStorageLocationRequest,
@@ -231,6 +233,34 @@ export function parseUpdateMovement(value: unknown): UpdateMovementRequest {
   if (body.quantity !== undefined) patch.quantity = parseQuantity(body.quantity);
   assertHasChanges(patch);
   return patch;
+}
+
+export function parseCreateOrderFromConsumptions(
+  value: unknown,
+): CreateOrderFromConsumptionsRequest {
+  const body = parseBody(value);
+  if (!Array.isArray(body.consumptions)) {
+    throw badRequest("Die Verbräuche müssen eine Liste sein.");
+  }
+  const items = body.consumptions as unknown[];
+  if (items.length === 0) throw badRequest("Es muss mindestens ein Verbrauch angegeben sein.");
+  if (items.length > MAX_CONSUMPTIONS_PER_ORDER) {
+    throw badRequest(
+      `Eine Bestellung darf höchstens ${MAX_CONSUMPTIONS_PER_ORDER} Verbräuche übernehmen.`,
+    );
+  }
+  const ids = new Set<string>();
+  const consumptions = items.map((item) => {
+    const { id: rawId, updatedAt } = parseBody(item);
+    const id = parseReference(rawId, "Jeder Verbrauch");
+    if (typeof updatedAt !== "string") {
+      throw badRequest("Zu jedem Verbrauch muss updatedAt als Text angegeben sein.");
+    }
+    if (ids.has(id)) throw badRequest("Jeder Verbrauch darf nur einmal angegeben sein.");
+    ids.add(id);
+    return { id, updatedAt };
+  });
+  return { consumptions, quantity: parseQuantity(body.quantity) };
 }
 
 function isHttpUrl(value: string): boolean {

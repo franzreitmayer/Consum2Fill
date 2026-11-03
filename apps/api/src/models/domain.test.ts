@@ -220,12 +220,74 @@ describe("ConsumptionModel createdBy", () => {
   });
 });
 
-describe("OrderModel createdBy", () => {
-  it("does not exist", () => {
-    expect(OrderModel.schema.path("createdBy")).toBeUndefined();
+describe("OrderModel createdBy and requestedBy", () => {
+  const createdBy = { id: "665f1c2ab0c4d8e9f0a1b2c3", displayName: "Erika Muster" };
+  const requestedBy = [
+    { number: 2, createdBy },
+    { number: 5, createdBy: null },
+  ];
+
+  it("default to null and an empty list, also for a stored document without them", async () => {
+    const fresh = new OrderModel(movement);
+    const stored = OrderModel.hydrate({ _id: "id", ...movement });
+
+    expect(fresh.createdBy).toBeNull();
+    expect([...fresh.requestedBy]).toEqual([]);
+    expect(stored.createdBy).toBeNull();
+    expect([...stored.requestedBy]).toEqual([]);
+    expect(await invalidPaths(OrderModel, movement)).toEqual([]);
+  });
+
+  it("do not share the default list", () => {
+    const first = new OrderModel(movement);
+    const second = new OrderModel(movement);
+
+    expect(first.requestedBy).not.toBe(second.requestedBy);
+  });
+
+  it("hold exactly the contract's fields, without an _id of their own", async () => {
+    const doc = new OrderModel({ ...movement, createdBy, requestedBy });
+
+    expect(await invalidPaths(OrderModel, { ...movement, createdBy, requestedBy })).toEqual([]);
+    expect(doc.toObject().createdBy).toEqual(createdBy);
+    expect(doc.toObject().requestedBy).toEqual(requestedBy);
+  });
+
+  it.each([
+    ["a missing number", { createdBy: null }, "requestedBy.0.number"],
+    ["a number below 1", { number: 0, createdBy: null }, "requestedBy.0.number"],
+    ["a decimal number", { number: 1.5, createdBy: null }, "requestedBy.0.number"],
+    [
+      "a creator without a name",
+      { number: 1, createdBy: { id: "x" } },
+      "requestedBy.0.createdBy.displayName",
+    ],
+  ])("reject a request with %s", async (_label, request, path) => {
+    const paths = await invalidPaths(OrderModel, { ...movement, requestedBy: [request] });
+
+    expect(paths).toContain(path);
+  });
+
+  it("reject unknown fields", async () => {
     expect(
-      () => new OrderModel({ ...movement, createdBy: { id: "x", displayName: "Fremd" } }),
-    ).toThrow();
+      await invalidPaths(OrderModel, { ...movement, createdBy: { ...createdBy, role: "ADMIN" } }),
+    ).toEqual(["createdBy"]);
+    expect(
+      await invalidPaths(OrderModel, {
+        ...movement,
+        requestedBy: [{ number: 1, createdBy: null, extra: true }],
+      }),
+    ).not.toEqual([]);
+  });
+
+  it("keep the values of a stored document", () => {
+    const stored = OrderModel.hydrate({ _id: "id", ...movement, createdBy, requestedBy });
+
+    stored.set("createdBy", { id: "other", displayName: "Fremd" });
+    stored.set("requestedBy", []);
+
+    expect(stored.createdBy?.id).toBe(createdBy.id);
+    expect(stored.toObject().requestedBy).toEqual(requestedBy);
   });
 });
 

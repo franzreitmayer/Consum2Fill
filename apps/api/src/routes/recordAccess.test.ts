@@ -151,12 +151,28 @@ describe("roles", () => {
       expect(patch.status).toBe(403);
     });
 
-    it("can read", async () => {
+    it(path === API_PATHS.orders ? "cannot read either" : "can read", async () => {
       const existing = await admin.post(path).send(validBody(path));
+      const expected = path === API_PATHS.orders ? 403 : 200;
 
-      expect((await user.get(path)).status).toBe(200);
-      expect((await user.get(`${path}/${existing.body.id}`)).status).toBe(200);
+      expect((await user.get(path)).status).toBe(expected);
+      expect((await user.get(`${path}/${existing.body.id}`)).status).toBe(expected);
+      expect((await user.head(path)).status).toBe(expected);
     });
+  });
+
+  it("answers USER 403 on reading orders before the id is looked at", async () => {
+    expect((await user.get(`${API_PATHS.orders}/${UNKNOWN_ID}`)).status).toBe(403);
+    expect((await user.get(`${API_PATHS.orders}/keine-guid`)).status).toBe(403);
+  });
+
+  it("lets ADMIN and MANAGER read orders", async () => {
+    const existing = await admin.post(API_PATHS.orders).send(movement);
+
+    for (const agent of [admin, manager]) {
+      expect((await agent.get(API_PATHS.orders)).status).toBe(200);
+      expect((await agent.get(`${API_PATHS.orders}/${existing.body.id}`)).status).toBe(200);
+    }
   });
 
   describe.each(RESTRICTED_PATHS)("%s as ADMIN and MANAGER", (path) => {

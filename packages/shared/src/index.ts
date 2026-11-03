@@ -16,7 +16,12 @@ export const API_PATHS = {
   storageLocations: "/api/storage-locations",
   consumptions: "/api/consumptions",
   orders: "/api/orders",
+  ordersFromConsumptions: "/api/orders/from-consumptions",
 } as const;
+
+export function orderDeliveredPath(id: string): string {
+  return `${API_PATHS.orders}/${encodeURIComponent(id)}/delivered`;
+}
 
 export function adminUserPath(id: string): string {
   return `${API_PATHS.adminUsers}/${encodeURIComponent(id)}`;
@@ -176,4 +181,19 @@ export interface Consumption extends Movement {
   createdBy: RecordCreator | null;
 }
 
-export type Order = Movement;
+export interface OrderRequest {
+  number: number;
+  createdBy: RecordCreator | null;
+}
+
+export interface Order extends Movement {
+  createdBy: RecordCreator | null;
+  requestedBy: OrderRequest[];
+}
+
+export const MAX_CONSUMPTIONS_PER_ORDER = 100;
+
+export interface CreateOrderFromConsumptionsRequest {
+  consumptions: { id: string; updatedAt: string }[];
+  quantity: number;
+}
